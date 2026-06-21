@@ -1,8 +1,7 @@
 // api/gappers.js
 
-const FINNHUB_KEY = 'd8rinr1r01qnkitnd4r0d8rinr1r01qnkitnd4rg'; // <--- PASTE YOUR ACTUAL FINNHUB KEY HERE!
+const FINNHUB_KEY = 'd8rinr1r01qnkitnd4r0d8rinr1r01qnkitnd4rg'; // <--- KEEP YOUR ACTUAL FINNHUB KEY HERE!
 
-// Expanded to 58 stocks (The max allowed by Finnhub's free 60 calls/minute limit)
 const STOCK_UNIVERSE = [
   { ticker: 'NVDA', name: 'NVIDIA Corp' }, { ticker: 'TSLA', name: 'Tesla Inc' },
   { ticker: 'AMD', name: 'Adv Micro Devices' }, { ticker: 'AAPL', name: 'Apple Inc' },
@@ -37,11 +36,13 @@ const STOCK_UNIVERSE = [
 
 let cachedData = { timestamp: 0, data: [] };
 
+// Helper to pause between batches so Finnhub doesn't rate-limit us
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 export default async function handler(req, res) {
   const now = Date.now();
   const thirtyMins = 30 * 60 * 1000;
 
-  // Return fresh cache if we have it
   if (now - cachedData.timestamp < thirtyMins && cachedData.data.length > 0) {
     return res.status(200).json({ 
       data: cachedData.data, 
@@ -82,11 +83,16 @@ export default async function handler(req, res) {
       } catch (e) { return null; }
     };
 
-    // Fetch all 58 stocks simultaneously
-    const quotes = await Promise.all(STOCK_UNIVERSE.map(fetchStockData));
+    let validGappers = [];
+    const chunkSize = 10; // Fetch 10 at a time to avoid rate limits
     
-    // Filter out nulls
-    let validGappers = quotes.filter(Boolean);
+    for (let i = 0; i < STOCK_UNIVERSE.length; i += chunkSize) {
+      const chunk = STOCK_UNIVERSE.slice(i, i + chunkSize);
+      const chunkResults = await Promise.all(chunk.map(fetchStockData));
+      validGappers.push(...chunkResults.filter(Boolean));
+      await sleep(1000); // Wait 1 second between batches
+    }
+    
     validGappers.sort((a, b) => Math.abs(b.gapPercent) - Math.abs(a.gapPercent));
 
     if (validGappers.length === 0) {
