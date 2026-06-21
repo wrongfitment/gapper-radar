@@ -30,14 +30,11 @@
   .grid-overlay { background-image: linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px); background-size: 48px 48px; }
   @keyframes pulse-ring { 0% { box-shadow: 0 0 0 0 currentColor; opacity: 1; } 100% { box-shadow: 0 0 0 8px transparent; opacity: 0.3; } }
   .pulse-dot { position: relative; animation: pulse-ring 1.8s ease-out infinite; }
-  
-  /* Card Hover Expand Logic */
   .stock-card { transition: transform 0.25s, border-color 0.25s, background 0.25s; position: relative; overflow: hidden; }
   .stock-card::after { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, transparent 40%, rgba(255,255,255,0.02) 100%); pointer-events: none; }
   .stock-card:hover { transform: translateY(-3px); border-color: var(--border-strong); background: var(--bg-elevated); }
   .card-extra { max-height: 0; overflow: hidden; transition: max-height 0.3s ease, opacity 0.3s ease, margin 0.3s ease; opacity: 0; margin-top: 0; padding-top: 0; border-top: 1px solid transparent; }
   .stock-card:hover .card-extra { max-height: 80px; opacity: 1; margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.05); }
-  
   .countdown-ring circle.progress { transform: rotate(-90deg); transform-origin: center; transition: stroke-dashoffset 1s linear; }
   @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
   .marquee-track { animation: marquee 80s linear infinite; width: max-content; }
@@ -132,7 +129,6 @@
     </div>
   </header>
 
-  <!-- Conversion-Optimized Hero -->
   <section class="relative z-10 border-b border-white/5 grid-overlay">
     <div class="max-w-[1600px] mx-auto px-4 md:px-6 py-12 md:py-20 text-center">
       <h2 class="text-3xl md:text-5xl font-black tracking-tight mb-4">Find Today's Biggest Premarket Gappers in Seconds</h2>
@@ -171,7 +167,6 @@
     </div>
   </section>
   
-  <!-- Scanner UI -->
   <section id="scannerSection" class="relative z-10 border-b border-white/5 bg-black/20">
     <div class="max-w-[1600px] mx-auto px-4 md:px-6 py-4">
       <div class="flex items-center justify-between flex-wrap gap-4 mb-4">
@@ -221,12 +216,10 @@
         <h2 class="text-[10px] text-[#7a8290] mono uppercase tracking-[0.2em]">All Gappers</h2>
         <span class="text-[10px] text-[#7a8290] mono uppercase tracking-wider" id="resultCount">0 results</span>
       </div>
-      <!-- Mobile optimized: 1 col on mobile, 2 on sm, 3 on xl -->
       <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3" id="stockGrid"></div>
     </div>
   </section>
   
-  <!-- SEO & Company Footer -->
   <footer class="relative z-10 border-t border-white/5 py-12 bg-black/30">
     <div class="max-w-[1600px] mx-auto px-4 md:px-6 grid md:grid-cols-4 gap-8">
       <div class="md:col-span-1">
@@ -274,7 +267,6 @@
   
   <div id="toastContainer" class="fixed bottom-6 right-6 z-50 flex flex-col gap-2 max-w-sm"></div>
   
-  <!-- TradingView Modal -->
   <div id="tvModal" class="modal-overlay fixed inset-0 z-[200] hidden items-center justify-center p-4">
     <div class="modal-content rounded-2xl w-full max-w-5xl max-h-[90vh] overflow-y-auto relative">
       <div class="sticky top-0 bg-[#0e1218] z-10 flex items-center justify-between p-4 border-b border-white/5">
@@ -294,7 +286,6 @@
     </div>
   </div>
 
-  <!-- Cmd + K Command Palette Modal -->
   <div id="cmdkModal" class="modal-overlay fixed inset-0 z-[300] hidden items-start justify-center pt-[10vh] px-4">
     <div class="modal-content rounded-2xl w-full max-w-xl overflow-hidden shadow-2xl">
       <input type="text" id="cmdkInput" placeholder="Search ticker or name..." class="w-full bg-transparent px-5 py-4 text-lg border-b border-white/5 focus:outline-none mono">
@@ -392,6 +383,10 @@
       const gradId = `grad-${stock.id}-${index}`;
       const scoreColor = stock.gapScore > 75 ? '#00ff9c' : stock.gapScore > 50 ? '#ffb547' : '#ff3d6e';
       
+      const catalystHTML = stock.catalysts.map(c => `
+        <span class="px-1.5 py-0.5 rounded text-[9px] mono font-bold uppercase tracking-wider bg-[#00d8ff]/10 text-[#00d8ff] border border-[#00d8ff]/30">${c}</span>
+      `).join('');
+      
       return `
         <div class="stock-card card-enter rounded-xl bg-[#0e1218] border border-white/5 p-4 cursor-pointer" 
              style="animation-delay: ${index * 30}ms; border-left: 2px solid ${borderTint};"
@@ -404,7 +399,7 @@
                       style="background: ${bgTint}; color: ${stock.isUp ? '#00ff9c' : '#ff3d6e'}; border: 1px solid ${borderTint};">
                   ${stock.isUp ? 'LONG' : 'SHORT'}
                 </span>
-                <span class="px-1.5 py-0.5 rounded text-[9px] mono font-bold uppercase tracking-wider bg-[#00d8ff]/10 text-[#00d8ff] border border-[#00d8ff]/30">${stock.catalyst}</span>
+                ${catalystHTML}
               </div>
               <div class="text-xs text-[#7a8290] mt-0.5 truncate">${stock.name}</div>
             </div>
@@ -447,7 +442,6 @@
             </div>
           </div>
           
-          <!-- Hover Expand Context -->
           <div class="card-extra text-xs grid grid-cols-2 gap-2">
             <div>
               <div class="text-[#7a8290] mono uppercase tracking-wider text-[9px]">Prev Close</div>
@@ -470,6 +464,7 @@
         : 'radial-gradient(ellipse at top right, rgba(255,61,110,0.10), transparent 60%)';
       const gradId = `feat-grad-${stock.id}-${index}`;
       const scoreColor = stock.gapScore > 75 ? '#00ff9c' : stock.gapScore > 50 ? '#ffb547' : '#ff3d6e';
+      const catalystText = stock.catalysts.join(' · ');
       
       return `
         <div class="rounded-2xl bg-[#0e1218] border border-white/5 p-5 relative overflow-hidden card-enter cursor-pointer"
@@ -512,7 +507,7 @@
           <div class="pt-4 border-t border-white/5 flex items-center justify-between">
             <div class="flex items-center gap-2">
               <div class="text-[9px] text-[#7a8290] mono uppercase tracking-wider">Catalyst:</div>
-              <div class="text-xs font-bold mono text-[#00d8ff]">${stock.catalyst}</div>
+              <div class="text-xs font-bold mono text-[#00d8ff]">${catalystText}</div>
             </div>
             <div class="flex items-center gap-2">
               <div class="text-[9px] text-[#7a8290] mono uppercase tracking-wider">Score:</div>
@@ -646,7 +641,6 @@
       document.getElementById('tvFinContainer').innerHTML = '';
     }
 
-    // Cmd+K Logic
     function openCmdK() {
       document.getElementById('cmdkModal').classList.remove('hidden');
       document.getElementById('cmdkModal').classList.add('flex');
@@ -709,7 +703,6 @@
     document.getElementById('openCmdK').addEventListener('click', openCmdK);
     document.getElementById('cmdkInput').addEventListener('input', (e) => renderCmdKResults(e.target.value));
     
-    // Smooth scroll for hero button
     document.getElementById('heroScanBtn').addEventListener('click', () => {
       document.getElementById('scannerSection').scrollIntoView({ behavior: 'smooth' });
     });
@@ -741,7 +734,6 @@
         updateStats(); renderTickerTape(); renderSectorPills(); renderGrid();
         showToast(`${isAuto ? 'Auto' : 'Manual'} scan complete · ${allGappers.length} pro gappers found`, 'success');
         
-        // Check if market is closed to show stale data warning
         const now = new Date();
         const day = now.getDay();
         const hours = now.getHours() + (now.getMinutes() / 60);
@@ -831,7 +823,6 @@
     
     document.addEventListener('click', (e) => {
       const card = e.target.closest('[data-ticker]');
-      // Prevent cmdk clicks from triggering this
       if (card && !e.target.closest('#cmdkModal')) {
         openStockModal(card.dataset.ticker, card.dataset.name || card.dataset.ticker + ' Inc');
       }
