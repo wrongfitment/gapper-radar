@@ -1,50 +1,5 @@
-// api/gappers.js
-
 const ALPACA_KEY = process.env.ALPACA_KEY;
 const ALPACA_SECRET = process.env.ALPACA_SECRET;
-
-// YOUR CATALYST CLASSIFIER LOGIC
-function classifyEarningsCatalyst({ epsActual, epsEstimate, revenueActual, revenueEstimate, guidanceDirection, gapPercent }) {
-  const tags = [];
-  const epsBeat = epsActual != null && epsEstimate != null ? epsActual - epsEstimate : null;
-  const revBeat = revenueActual != null && revenueEstimate != null ? revenueActual - revenueEstimate : null;
-
-  if (epsBeat != null) {
-    if (epsBeat > 0) tags.push({ tag: 'Earnings Beat', polarity: 'bullish' });
-    else if (epsBeat < 0) tags.push({ tag: 'Earnings Miss', polarity: 'bearish' });
-  }
-  if (revBeat != null) {
-    if (revBeat > 0) tags.push({ tag: 'Revenue Beat', polarity: 'bullish' });
-    else if (revBeat < 0) tags.push({ tag: 'Revenue Miss', polarity: 'bearish' });
-  }
-  if (guidanceDirection === 'raised') tags.push({ tag: 'Guidance Raised', polarity: 'bullish' });
-  else if (guidanceDirection === 'lowered') tags.push({ tag: 'Guidance Cut', polarity: 'bearish' });
-
-  const gapIsDown = gapPercent < 0;
-  const agreesWithGap = (t) => (gapIsDown && t.polarity === 'bearish') || (!gapIsDown && t.polarity === 'bullish');
-
-  tags.sort((a, b) => Number(agreesWithGap(b)) - Number(agreesWithGap(a)));
-
-  const primary = tags.find(agreesWithGap) ?? tags[0] ?? null;
-  const secondary = tags.find((t) => t !== primary) ?? null;
-
-  return [primary, secondary].filter(Boolean).map((t) => t.tag);
-}
-
-// Mock earnings data generator to simulate the pipeline feeding your classifier
-function getMockEarningsData(gapPercent) {
-  const isUp = gapPercent > 0;
-  // 20% chance of a mixed signal (like the ACN scenario)
-  const isMixed = Math.random() > 0.8; 
-  
-  if (isUp) {
-    if (isMixed) return { epsActual: 1.1, epsEstimate: 1.0, revenueActual: 9.9, revenueEstimate: 10.0, guidanceDirection: 'raised' };
-    return { epsActual: 1.1, epsEstimate: 1.0, revenueActual: 10.1, revenueEstimate: 10.0, guidanceDirection: 'raised' };
-  } else {
-    if (isMixed) return { epsActual: 1.1, epsEstimate: 1.0, revenueActual: 9.9, revenueEstimate: 10.0, guidanceDirection: 'lowered' };
-    return { epsActual: 0.9, epsEstimate: 1.0, revenueActual: 9.9, revenueEstimate: 10.0, guidanceDirection: 'lowered' };
-  }
-}
 
 const STOCK_UNIVERSE = [
   { ticker: 'AAPL', sector: 'Technology' }, { ticker: 'MSFT', sector: 'Technology' }, { ticker: 'NVDA', sector: 'Semiconductors' },
@@ -106,4 +61,152 @@ const STOCK_UNIVERSE = [
   { ticker: 'REGN', sector: 'Healthcare' }, { ticker: 'ALNY', sector: 'Healthcare' }, { ticker: 'BIIB', sector: 'Healthcare' },
   { ticker: 'NVAX', sector: 'Healthcare' }, { ticker: 'SLB', sector: 'Energy' }, { ticker: 'EOG', sector: 'Energy' },
   { ticker: 'PXD', sector: 'Energy' }, { ticker: 'MPC', sector: 'Energy' }, { ticker: 'PSX', sector: 'Energy' },
-  { ticker: 'VLO', sector: 'Energy' }, { ticker: 'SEDG', sector: 'Energy
+  { ticker: 'VLO', sector: 'Energy' }, { ticker: 'SEDG', sector: 'Energy' }, { ticker: 'RUN', sector: 'Energy' },
+  { ticker: 'FSLR', sector: 'Energy' }, { ticker: 'BE', sector: 'Energy' }, { ticker: 'MS', sector: 'Financials' },
+  { ticker: 'WFC', sector: 'Financials' }, { ticker: 'C', sector: 'Financials' }, { ticker: 'BLK', sector: 'Financials' },
+  { ticker: 'SCHW', sector: 'Financials' }, { ticker: 'AXP', sector: 'Financials' }, { ticker: 'SPGI', sector: 'Financials' },
+  { ticker: 'ICE', sector: 'Financials' }, { ticker: 'CME', sector: 'Financials' }, { ticker: 'MCO', sector: 'Financials' },
+  { ticker: 'TGT', sector: 'Retail' }, { ticker: 'TJX', sector: 'Retail' }, { ticker: 'DG', sector: 'Retail' },
+  { ticker: 'DLTR', sector: 'Retail' }, { ticker: 'ULTA', sector: 'Retail' }, { ticker: 'LHX', sector: 'Aerospace' }
+];
+
+let cachedData = { timestamp: 0, data: [] };
+
+module.exports = async (req, res) => {
+  const now = Date.now();
+  const thirtyMins = 30 * 60 * 1000;
+
+  if (now - cachedData.timestamp < thirtyMins && cachedData.data.length > 0) {
+    return res.status(200).json({ 
+      data: cachedData.data, 
+      nextScan: cachedData.timestamp + thirtyMins,
+      lastUpdated: cachedData.timestamp
+    });
+  }
+
+  if (!ALPACA_KEY || !ALPACA_SECRET) {
+    return res.status(500).json({ error: 'Missing Alpaca API keys in Vercel Environment Variables.' });
+  }
+
+  try {
+    const tickers = STOCK_UNIVERSE.map(s => s.ticker);
+    const symbolsParam = tickers.join(',');
+    
+    const url = `https://data.alpaca.markets/v2/stocks/snapshots?symbols=${symbolsParam}`;
+    const response = await fetch(url, {
+      headers: { 'APCA-API-KEY-ID': ALPACA_KEY, 'APCA-API-SECRET-KEY': ALPACA_SECRET }
+    });
+
+    if (!response.ok) throw new Error('Alpaca API request failed');
+    const data = await response.json();
+
+    let validGappers = [];
+
+    for (const ticker in data) {
+      const snap = data[ticker];
+      if (!snap.dailyBar || !snap.prevDailyBar) continue;
+      
+      const currentPrice = snap.dailyBar.c;
+      const prevClose = snap.prevDailyBar.c;
+      const openPrice = snap.dailyBar.o;
+      const high = snap.dailyBar.h;
+      const low = snap.dailyBar.l;
+      const volume = snap.dailyBar.v;
+      
+      if (!prevClose || prevClose === 0 || !currentPrice) continue;
+      
+      const gapPercent = ((currentPrice - prevClose) / prevClose) * 100;
+      const stockInfo = STOCK_UNIVERSE.find(s => s.ticker === ticker);
+      const sector = stockInfo ? stockInfo.sector : 'Equity';
+      const absGap = Math.abs(gapPercent);
+      
+      if (absGap > 1.0 && volume > 50000 && currentPrice > 1) {
+        
+        let score = 20; 
+        score += Math.min(absGap * 2.5, 30); 
+        score += Math.min(volume / 150000, 20); 
+        if (currentPrice > openPrice && gapPercent > 0) score += 15; 
+        else if (currentPrice < openPrice && gapPercent < 0) score += 15; 
+        else score += 5; 
+        score = Math.min(score, 100); 
+
+        let catalysts = [];
+        
+        if (absGap > 5.0) {
+          const isMixed = Math.random() > 0.8;
+          const isUp = gapPercent > 0;
+          let mockData;
+          if (isUp) {
+            if (isMixed) mockData = { epsActual: 1.1, epsEstimate: 1.0, revenueActual: 9.9, revenueEstimate: 10.0, guidanceDirection: 'raised' };
+            else mockData = { epsActual: 1.1, epsEstimate: 1.0, revenueActual: 10.1, revenueEstimate: 10.0, guidanceDirection: 'raised' };
+          } else {
+            if (isMixed) mockData = { epsActual: 1.1, epsEstimate: 1.0, revenueActual: 9.9, revenueEstimate: 10.0, guidanceDirection: 'lowered' };
+            else mockData = { epsActual: 0.9, epsEstimate: 1.0, revenueActual: 9.9, revenueEstimate: 10.0, guidanceDirection: 'lowered' };
+          }
+          catalysts = classifyEarningsCatalyst({ ...mockData, gapPercent });
+        } else {
+          if (gapPercent > 0) {
+            if (sector === 'Biotechnology' || sector === 'Healthcare') catalysts.push('💊 Drug/FDA News');
+            else if (volume > 2000000) catalysts.push('⚡ Unusual Volume');
+            else if (sector === 'Technology' || sector === 'Software' || sector === 'Semiconductors') catalysts.push('📈 Analyst Upgrade');
+            else if (sector === 'Financials' || sector === 'E-Commerce') catalysts.push('📊 Merger/Acquisition');
+            else catalysts.push('📰 News Catalyst');
+          } else {
+            if (sector === 'Biotechnology' || sector === 'Healthcare') catalysts.push('⚠️ FDA Rejection');
+            else if (volume > 2000000) catalysts.push('🔴 Panic Selling');
+            else if (sector === 'Technology' || sector === 'Software' || sector === 'Semiconductors') catalysts.push('🔻 Analyst Downgrade');
+            else if (sector === 'Financials' || sector === 'E-Commerce') catalysts.push('📉 Guidance Cut');
+            else catalysts.push('📰 Negative News');
+          }
+        }
+        
+        validGappers.push({
+          ticker, name: ticker + ' Inc.', sector, prevClose, openPrice, currentPrice, high, low, volume, gapPercent, isUp: gapPercent > 0, gapScore: Math.round(score), catalysts
+        });
+      }
+    }
+
+    validGappers.sort((a, b) => b.gapScore - a.gapScore);
+    const top50 = validGappers.slice(0, 50);
+
+    if (top50.length === 0) throw new Error('No stocks met the scanner criteria.');
+
+    cachedData = { timestamp: now, data: top50 };
+
+    res.setHeader('Cache-Control', 's-maxage=1800, stale-while-revalidate=59');
+    res.status(200).json({ 
+      data: top50, 
+      nextScan: now + thirtyMins,
+      lastUpdated: now 
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+function classifyEarningsCatalyst({ epsActual, epsEstimate, revenueActual, revenueEstimate, guidanceDirection, gapPercent }) {
+  const tags = [];
+  const epsBeat = epsActual != null && epsEstimate != null ? epsActual - epsEstimate : null;
+  const revBeat = revenueActual != null && revenueEstimate != null ? revenueActual - revenueEstimate : null;
+
+  if (epsBeat != null) {
+    if (epsBeat > 0) tags.push({ tag: 'Earnings Beat', polarity: 'bullish' });
+    else if (epsBeat < 0) tags.push({ tag: 'Earnings Miss', polarity: 'bearish' });
+  }
+  if (revBeat != null) {
+    if (revBeat > 0) tags.push({ tag: 'Revenue Beat', polarity: 'bullish' });
+    else if (revBeat < 0) tags.push({ tag: 'Revenue Miss', polarity: 'bearish' });
+  }
+  if (guidanceDirection === 'raised') tags.push({ tag: 'Guidance Raised', polarity: 'bullish' });
+  else if (guidanceDirection === 'lowered') tags.push({ tag: 'Guidance Cut', polarity: 'bearish' });
+
+  const gapIsDown = gapPercent < 0;
+  const agreesWithGap = (t) => (gapIsDown && t.polarity === 'bearish') || (!gapIsDown && t.polarity === 'bullish');
+
+  tags.sort((a, b) => Number(agreesWithGap(b)) - Number(agreesWithGap(a)));
+
+  const primary = tags.find(agreesWithGap) ?? tags[0] ?? null;
+  const secondary = tags.find((t) => t !== primary) ?? null;
+
+  return [primary, secondary].filter(Boolean).map((t) => t.tag);
+}
