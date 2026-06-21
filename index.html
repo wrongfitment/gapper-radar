@@ -58,6 +58,8 @@
   .search-input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(255,181,71,0.2); }
   .score-bar-bg { background: rgba(255,255,255,0.05); height: 4px; border-radius: 2px; overflow: hidden; }
   .score-bar-fill { height: 100%; transition: width 0.5s ease; }
+  .progress-bar-bg { background: rgba(255,255,255,0.05); }
+  .progress-bar-fill { background: var(--accent); transition: width 0.3s ease; }
 </style>
 </head>
 <body class="session-open">
@@ -121,7 +123,6 @@
     </div>
   </header>
 
-  <!-- Hero & Trust Section -->
   <section class="relative z-10 border-b border-white/5 grid-overlay">
     <div class="max-w-[1600px] mx-auto px-4 md:px-6 py-10 text-center">
       <h2 class="text-2xl md:text-4xl font-black tracking-tight mb-3">Spot the Market's Biggest Movers Instantly</h2>
@@ -131,12 +132,11 @@
       <div class="flex items-center justify-center gap-6 flex-wrap text-xs mono uppercase tracking-wider">
         <span class="flex items-center gap-2 text-[#00ff9c]"><span class="w-2 h-2 rounded-full bg-[#00ff9c] pulse-dot text-[#00ff9c]"></span> Live Data: Alpaca Markets</span>
         <span class="flex items-center gap-2 text-[#ffb547]"><span class="w-2 h-2 rounded-full bg-[#ffb547]"></span> Auto-Scan: Every 30 Mins</span>
-        <span class="flex items-center gap-2 text-[#00d8ff]"><span class="w-2 h-2 rounded-full bg-[#00d8ff]"></span> Universe: 195 Tickers (Top 50 Shown) High-Beta Tickers</span>
+        <span class="flex items-center gap-2 text-[#00d8ff]"><span class="w-2 h-2 rounded-full bg-[#00d8ff]"></span> Universe: 195 Tickers (Top 50 Shown)</span>
       </div>
     </div>
   </section>
   
-  <!-- Search & Filters -->
   <section class="relative z-10 border-b border-white/5 bg-black/20">
     <div class="max-w-[1600px] mx-auto px-4 md:px-6 py-4">
       <div class="flex items-center justify-between flex-wrap gap-4 mb-4">
@@ -174,7 +174,6 @@
     </div>
   </section>
   
-  <!-- Stats Bar -->
   <section class="relative z-10 border-b border-white/5 bg-black/20">
     <div class="max-w-[1600px] mx-auto px-4 md:px-6 py-4">
       <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -218,7 +217,6 @@
     </div>
   </section>
   
-  <!-- Methodology & Disclaimer Footer -->
   <footer class="relative z-10 border-t border-white/5 py-8 bg-black/30">
     <div class="max-w-[1600px] mx-auto px-4 md:px-6 grid md:grid-cols-3 gap-8">
       <div>
@@ -232,7 +230,7 @@
         <h4 class="text-xs font-bold text-white mb-2 mono uppercase tracking-wider">Data & Trust</h4>
         <p class="text-xs text-[#7a8290] leading-relaxed">
           Real-time market data provided by Alpaca Markets API. <br><br>
-          The scanner universe is currently restricted to a curated list of 56 highly liquid, high-beta stocks to ensure real-time reliability. Snapshots are cached for 30 minutes to prevent API rate limits.
+          The scanner universe is currently restricted to a curated list of 195 highly liquid, high-beta stocks to ensure real-time reliability. Snapshots are cached for 30 minutes to prevent API rate limits.
         </p>
       </div>
       <div>
@@ -272,6 +270,81 @@
   </div>
 
   <script>
+    // =======================================================================
+    // PASTE YOUR ALPACA KEYS HERE
+    // =======================================================================
+    const ALPACA_KEY = 'YOUR_ALPACA_KEY';
+    const ALPACA_SECRET = 'YOUR_ALPACA_SECRET';
+
+    const STOCK_UNIVERSE = [
+      { ticker: 'AAPL', sector: 'Technology' }, { ticker: 'MSFT', sector: 'Technology' }, { ticker: 'NVDA', sector: 'Semiconductors' },
+      { ticker: 'AMZN', sector: 'Consumer' }, { ticker: 'GOOGL', sector: 'Communication' }, { ticker: 'GOOG', sector: 'Communication' },
+      { ticker: 'META', sector: 'Communication' }, { ticker: 'TSLA', sector: 'Automotive' }, { ticker: 'AVGO', sector: 'Semiconductors' },
+      { ticker: 'PEP', sector: 'Consumer Staples' }, { ticker: 'COST', sector: 'Consumer Staples' }, { ticker: 'CSCO', sector: 'Technology' },
+      { ticker: 'ADBE', sector: 'Software' }, { ticker: 'NFLX', sector: 'Communication' }, { ticker: 'AMD', sector: 'Semiconductors' },
+      { ticker: 'INTC', sector: 'Semiconductors' }, { ticker: 'QCOM', sector: 'Semiconductors' }, { ticker: 'TXN', sector: 'Semiconductors' },
+      { ticker: 'AMGN', sector: 'Biotechnology' }, { ticker: 'HON', sector: 'Industrials' }, { ticker: 'V', sector: 'Financials' },
+      { ticker: 'MA', sector: 'Financials' }, { ticker: 'UNH', sector: 'Healthcare' }, { ticker: 'JNJ', sector: 'Healthcare' },
+      { ticker: 'JPM', sector: 'Financials' }, { ticker: 'PG', sector: 'Consumer Staples' }, { ticker: 'WMT', sector: 'Consumer Staples' },
+      { ticker: 'HD', sector: 'Consumer' }, { ticker: 'CVX', sector: 'Energy' }, { ticker: 'MRK', sector: 'Healthcare' },
+      { ticker: 'ABBV', sector: 'Healthcare' }, { ticker: 'KO', sector: 'Consumer Staples' }, { ticker: 'DIS', sector: 'Communication' },
+      { ticker: 'BAC', sector: 'Financials' }, { ticker: 'XOM', sector: 'Energy' }, { ticker: 'PFE', sector: 'Healthcare' },
+      { ticker: 'MO', sector: 'Consumer Staples' }, { ticker: 'CRM', sector: 'Software' }, { ticker: 'TMO', sector: 'Healthcare' },
+      { ticker: 'COP', sector: 'Energy' }, { ticker: 'PLTR', sector: 'Software' }, { ticker: 'COIN', sector: 'Financials' },
+      { ticker: 'SOFI', sector: 'Financials' }, { ticker: 'GME', sector: 'Retail' }, { ticker: 'AMC', sector: 'Entertainment' },
+      { ticker: 'MRNA', sector: 'Biotechnology' }, { ticker: 'BNTX', sector: 'Biotechnology' }, { ticker: 'GS', sector: 'Financials' },
+      { ticker: 'OXY', sector: 'Energy' }, { ticker: 'RIVN', sector: 'Automotive' }, { ticker: 'LCID', sector: 'Automotive' },
+      { ticker: 'SPCE', sector: 'Aerospace' }, { ticker: 'PLUG', sector: 'Energy' }, { ticker: 'FCEL', sector: 'Energy' },
+      { ticker: 'MARA', sector: 'Financials' }, { ticker: 'RIOT', sector: 'Financials' }, { ticker: 'MSTR', sector: 'Software' },
+      { ticker: 'SNAP', sector: 'Communication' }, { ticker: 'SQ', sector: 'Financials' }, { ticker: 'BABA', sector: 'E-Commerce' },
+      { ticker: 'NIO', sector: 'Automotive' }, { ticker: 'SHOP', sector: 'E-Commerce' }, { ticker: 'PYPL', sector: 'Financials' },
+      { ticker: 'DKNG', sector: 'Entertainment' }, { ticker: 'RBLX', sector: 'Entertainment' }, { ticker: 'U', sector: 'Software' },
+      { ticker: 'ENPH', sector: 'Energy' }, { ticker: 'MU', sector: 'Semiconductors' }, { ticker: 'ZM', sector: 'Software' },
+      { ticker: 'TWLO', sector: 'Software' }, { ticker: 'NET', sector: 'Software' }, { ticker: 'CRWD', sector: 'Software' },
+      { ticker: 'TSM', sector: 'Semiconductors' }, { ticker: 'ASML', sector: 'Semiconductors' }, { ticker: 'UBER', sector: 'Transportation' },
+      { ticker: 'LYFT', sector: 'Transportation' }, { ticker: 'PINS', sector: 'Communication' }, { ticker: 'ABNB', sector: 'Consumer' },
+      { ticker: 'DASH', sector: 'Consumer' }, { ticker: 'AFRM', sector: 'Financials' }, { ticker: 'HOOD', sector: 'Financials' },
+      { ticker: 'ORCL', sector: 'Software' }, { ticker: 'SAP', sector: 'Software' }, { ticker: 'NOW', sector: 'Software' },
+      { ticker: 'INTU', sector: 'Software' }, { ticker: 'WDAY', sector: 'Software' }, { ticker: 'IBM', sector: 'Technology' },
+      { ticker: 'HPE', sector: 'Technology' }, { ticker: 'DELL', sector: 'Technology' }, { ticker: 'ACN', sector: 'Technology' },
+      { ticker: 'CTSH', sector: 'Technology' }, { ticker: 'EBAY', sector: 'E-Commerce' }, { ticker: 'ETSY', sector: 'E-Commerce' },
+      { ticker: 'MELI', sector: 'E-Commerce' }, { ticker: 'CPNG', sector: 'E-Commerce' }, { ticker: 'SE', sector: 'E-Commerce' },
+      { ticker: 'STNE', sector: 'Financials' }, { ticker: 'W', sector: 'E-Commerce' }, { ticker: 'BIDU', sector: 'Communication' },
+      { ticker: 'JD', sector: 'E-Commerce' }, { ticker: 'PDD', sector: 'E-Commerce' }, { ticker: 'NTES', sector: 'Communication' },
+      { ticker: 'NXPI', sector: 'Semiconductors' }, { ticker: 'LRCX', sector: 'Semiconductors' }, { ticker: 'AMAT', sector: 'Semiconductors' },
+      { ticker: 'MRVL', sector: 'Semiconductors' }, { ticker: 'ADI', sector: 'Semiconductors' }, { ticker: 'KLAC', sector: 'Semiconductors' },
+      { ticker: 'SNPS', sector: 'Software' }, { ticker: 'CDNS', sector: 'Software' }, { ticker: 'FTNT', sector: 'Software' },
+      { ticker: 'PANW', sector: 'Software' }, { ticker: 'ADSK', sector: 'Software' }, { ticker: 'TEAM', sector: 'Software' },
+      { ticker: 'OKTA', sector: 'Software' }, { ticker: 'MDB', sector: 'Software' }, { ticker: 'DDOG', sector: 'Software' },
+      { ticker: 'SNOW', sector: 'Software' }, { ticker: 'ROKU', sector: 'Communication' }, { ticker: 'F', sector: 'Automotive' },
+      { ticker: 'GM', sector: 'Automotive' }, { ticker: 'XPEV', sector: 'Automotive' }, { ticker: 'LI', sector: 'Automotive' },
+      { ticker: 'NKLA', sector: 'Automotive' }, { ticker: 'FSR', sector: 'Automotive' }, { ticker: 'GOEV', sector: 'Automotive' },
+      { ticker: 'BA', sector: 'Aerospace' }, { ticker: 'LMT', sector: 'Aerospace' }, { ticker: 'RTX', sector: 'Aerospace' },
+      { ticker: 'NOC', sector: 'Aerospace' }, { ticker: 'GD', sector: 'Aerospace' }, { ticker: 'SBUX', sector: 'Consumer' },
+      { ticker: 'DPZ', sector: 'Consumer' }, { ticker: 'CMG', sector: 'Consumer' }, { ticker: 'YUM', sector: 'Consumer' },
+      { ticker: 'MCD', sector: 'Consumer' }, { ticker: 'WEN', sector: 'Consumer' }, { ticker: 'JACK', sector: 'Consumer' },
+      { ticker: 'WING', sector: 'Consumer' }, { ticker: 'TXRH', sector: 'Consumer' }, { ticker: 'CAKE', sector: 'Consumer' },
+      { ticker: 'SHAK', sector: 'Consumer' }, { ticker: 'DENN', sector: 'Consumer' }, { ticker: 'BJRI', sector: 'Consumer' },
+      { ticker: 'EAT', sector: 'Consumer' }, { ticker: 'DIN', sector: 'Consumer' }, { ticker: 'BLMN', sector: 'Consumer' },
+      { ticker: 'DRI', sector: 'Consumer' }, { ticker: 'RRGB', sector: 'Consumer' }, { ticker: 'NDLS', sector: 'Consumer' },
+      { ticker: 'QSR', sector: 'Consumer' }, { ticker: 'BBY', sector: 'Retail' }, { ticker: 'KSS', sector: 'Retail' },
+      { ticker: 'M', sector: 'Retail' }, { ticker: 'JWN', sector: 'Retail' }, { ticker: 'ANF', sector: 'Retail' },
+      { ticker: 'URBN', sector: 'Retail' }, { ticker: 'FL', sector: 'Retail' }, { ticker: 'NKE', sector: 'Retail' },
+      { ticker: 'LULU', sector: 'Retail' }, { ticker: 'TPR', sector: 'Retail' }, { ticker: 'SHOO', sector: 'Retail' },
+      { ticker: 'VRA', sector: 'Retail' }, { ticker: 'GES', sector: 'Retail' }, { ticker: 'LLY', sector: 'Healthcare' },
+      { ticker: 'BMY', sector: 'Healthcare' }, { ticker: 'GILD', sector: 'Healthcare' }, { ticker: 'VRTX', sector: 'Healthcare' },
+      { ticker: 'REGN', sector: 'Healthcare' }, { ticker: 'ALNY', sector: 'Healthcare' }, { ticker: 'BIIB', sector: 'Healthcare' },
+      { ticker: 'NVAX', sector: 'Healthcare' }, { ticker: 'SLB', sector: 'Energy' }, { ticker: 'EOG', sector: 'Energy' },
+      { ticker: 'PXD', sector: 'Energy' }, { ticker: 'MPC', sector: 'Energy' }, { ticker: 'PSX', sector: 'Energy' },
+      { ticker: 'VLO', sector: 'Energy' }, { ticker: 'SEDG', sector: 'Energy' }, { ticker: 'RUN', sector: 'Energy' },
+      { ticker: 'FSLR', sector: 'Energy' }, { ticker: 'BE', sector: 'Energy' }, { ticker: 'MS', sector: 'Financials' },
+      { ticker: 'WFC', sector: 'Financials' }, { ticker: 'C', sector: 'Financials' }, { ticker: 'BLK', sector: 'Financials' },
+      { ticker: 'SCHW', sector: 'Financials' }, { ticker: 'AXP', sector: 'Financials' }, { ticker: 'SPGI', sector: 'Financials' },
+      { ticker: 'ICE', sector: 'Financials' }, { ticker: 'CME', sector: 'Financials' }, { ticker: 'MCO', sector: 'Financials' },
+      { ticker: 'TGT', sector: 'Retail' }, { ticker: 'TJX', sector: 'Retail' }, { ticker: 'DG', sector: 'Retail' },
+      { ticker: 'DLTR', sector: 'Retail' }, { ticker: 'ULTA', sector: 'Retail' }, { ticker: 'LHX', sector: 'Aerospace' }
+    ];
+
     function formatVolume(v) {
       if (!v) return '0';
       if (v >= 1e9) return (v / 1e9).toFixed(2) + 'B';
@@ -297,6 +370,27 @@
     let countdownSeconds = 30 * 60;
     let countdownInterval = null;
     
+    // Local cache to load instantly on refresh
+    const CACHE_KEY = 'gapperRadarCache';
+    const CACHE_TIME = 30 * 60 * 1000;
+    
+    function getCachedData() {
+      try {
+        const cached = localStorage.getItem(CACHE_KEY);
+        if (cached) {
+          const data = JSON.parse(cached);
+          if (Date.now() - data.timestamp < CACHE_TIME) return data;
+        }
+      } catch (e) {}
+      return null;
+    }
+    
+    function saveCachedData(data) {
+      try {
+        localStorage.setItem(CACHE_KEY, JSON.stringify({ timestamp: Date.now(), data: data }));
+      } catch (e) {}
+    }
+
     function generateOHLCSparkline(open, high, low, current) {
       const points = 32;
       const data = [];
@@ -361,7 +455,6 @@
       const borderTint = stock.isUp ? 'rgba(0,255,156,0.18)' : 'rgba(255,61,110,0.18)';
       const gradId = `grad-${stock.id}-${index}`;
       
-      // "Why this matters" signals
       const isHighMomentum = stock.gapScore >= 75;
       const isVolSpike = stock.volume >= 1500000;
       const scoreColor = stock.gapScore > 70 ? '#00ff9c' : stock.gapScore > 50 ? '#ffb547' : '#ff3d6e';
@@ -621,48 +714,105 @@
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
     
     async function performScan(isAuto = false) {
-      const loadingEl = document.getElementById('stockGrid');
-      loadingEl.innerHTML = `<div class="col-span-full text-center py-10 text-[#7a8290] mono uppercase tracking-wider">Fetching real-time Alpaca snapshots...</div>`;
-      document.getElementById('featuredContainer').innerHTML = '';
-      
+      const cached = getCachedData();
+      if (cached && !isAuto) {
+        allGappers = cached.data;
+        updateStats(); renderTickerTape(); renderSectorPills(); renderGrid();
+        showToast('Loaded from cache. Fetching fresh data in background...', 'info');
+      } else {
+        const loadingEl = document.getElementById('stockGrid');
+        loadingEl.innerHTML = `<div class="col-span-full text-center py-10 text-[#7a8290] mono uppercase tracking-wider">Scanning 195 Stocks via Alpaca...</div>`;
+        document.getElementById('featuredContainer').innerHTML = '';
+      }
+
       try {
-        const response = await fetch('/api/gappers');
-        
-        // Safely handle the response so we don't crash the app with JSON.parse
-        const rawText = await response.text();
-        let result;
-        try {
-          result = JSON.parse(rawText);
-        } catch (e) {
-          throw new Error(`Backend returned an HTML error page instead of data. Check Vercel logs.`);
-        }
-        
-        if (!response.ok || !result.data) {
-          throw new Error(result.error || `Backend Error: Status ${response.status}`);
+        if (!ALPACA_KEY || ALPACA_KEY === 'YOUR_ALPACA_KEY') {
+          throw new Error('Missing Alpaca API keys in index.html!');
         }
 
-        allGappers = result.data.map(stock => {
-          const sparkData = generateOHLCSparkline(stock.openPrice, stock.high, stock.low, stock.currentPrice);
-          return { ...stock, sparkData, id: `${stock.ticker}-${Math.random()}` };
+        const tickers = STOCK_UNIVERSE.map(s => s.ticker);
+        const symbolsParam = tickers.join(',');
+        const url = `https://data.alpaca.markets/v2/stocks/snapshots?symbols=${symbolsParam}`;
+        
+        const response = await fetch(url, {
+          headers: { 'APCA-API-KEY-ID': ALPACA_KEY, 'APCA-API-SECRET-KEY': ALPACA_SECRET }
         });
+
+        const rawText = await response.text();
+        let data;
+        try {
+          data = JSON.parse(rawText);
+        } catch (e) {
+          throw new Error(`Alpaca returned an HTML error page instead of data.`);
+        }
+
+        if (!response.ok) {
+          throw new Error(data.message || 'Alpaca API request failed');
+        }
+
+        let validGappers = [];
+
+        for (const ticker in data) {
+          const snap = data[ticker];
+          if (!snap.dailyBar || !snap.prevDailyBar) continue;
+          
+          const currentPrice = snap.dailyBar.c;
+          const prevClose = snap.prevDailyBar.c;
+          const openPrice = snap.dailyBar.o;
+          const high = snap.dailyBar.h;
+          const low = snap.dailyBar.l;
+          const volume = snap.dailyBar.v;
+          
+          if (!prevClose || prevClose === 0 || !currentPrice) continue;
+          
+          const gapPercent = ((currentPrice - prevClose) / prevClose) * 100;
+          const stockInfo = STOCK_UNIVERSE.find(s => s.ticker === ticker);
+          
+          if (Math.abs(gapPercent) > 1.0 && volume > 50000 && currentPrice > 1) {
+            let score = 50; 
+            score += Math.min(Math.abs(gapPercent) * 1.5, 15); 
+            if (volume > 500000) score += 10;
+            if (volume > 2000000) score += 10; 
+            if (currentPrice > openPrice && gapPercent > 0) score += 10; 
+            if (currentPrice < openPrice && gapPercent < 0) score += 10; 
+            score = Math.min(score, 95); 
+            
+            validGappers.push({
+              ticker: ticker,
+              name: ticker + ' Inc.',
+              sector: stockInfo ? stockInfo.sector : 'Equity',
+              prevClose: prevClose,
+              openPrice: openPrice,
+              currentPrice: currentPrice,
+              high: high,
+              low: low,
+              volume: volume,
+              gapPercent: gapPercent,
+              isUp: gapPercent > 0,
+              gapScore: Math.round(score),
+              sparkData: generateOHLCSparkline(openPrice, high, low, currentPrice)
+            });
+          }
+        }
+
+        validGappers.sort((a, b) => b.gapScore - a.gapScore);
+        const top50 = validGappers.slice(0, 50);
+
+        if (top50.length === 0) throw new Error('No stocks met the scanner criteria.');
+
+        allGappers = top50;
+        saveCachedData(allGappers);
 
         updateStats(); renderTickerTape(); renderSectorPills(); renderGrid();
         showToast(`${isAuto ? 'Auto' : 'Manual'} scan complete · ${allGappers.length} pro gappers found`, 'success');
-        
-        if (result.nextScan) countdownSeconds = Math.max(0, Math.floor((result.nextScan - Date.now()) / 1000));
-        else countdownSeconds = 30 * 60;
+        countdownSeconds = 30 * 60;
         updateCountdownDisplay();
       } catch (error) {
         console.error("Fetch error:", error);
         showToast(error.message, 'error');
-        loadingEl.innerHTML = `<div class="col-span-full text-center py-10 text-[#ff3d6e] mono uppercase tracking-wider px-4">Error: ${error.message}</div>`;
-      }
-    }
-        updateCountdownDisplay();
-      } catch (error) {
-        console.error("Fetch error:", error);
-        showToast(error.message, 'error');
-        loadingEl.innerHTML = `<div class="col-span-full text-center py-10 text-[#ff3d6e] mono uppercase tracking-wider px-4">Error: ${error.message}</div>`;
+        if (!cached) {
+          document.getElementById('stockGrid').innerHTML = `<div class="col-span-full text-center py-10 text-[#ff3d6e] mono uppercase tracking-wider px-4">Error: ${error.message}</div>`;
+        }
       }
     }
     
