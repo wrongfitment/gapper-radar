@@ -719,7 +719,10 @@
         try {
           result = JSON.parse(rawText);
         } catch (e) {
-          throw new Error(`Backend returned an HTML error page instead of data. Did you add package.json?`);
+          // If it's HTML, grab the actual error title from Vercel's error page
+          const errorMatch = rawText.match(/<title>(.*?)<\/title>/i);
+          const cleanError = errorMatch ? errorMatch[1] : 'Vercel returned an HTML error page';
+          throw new Error(cleanError);
         }
         
         if (!response.ok || !result.data) {
@@ -748,6 +751,12 @@
         if (result.nextScan) countdownSeconds = Math.max(0, Math.floor((result.nextScan - Date.now()) / 1000));
         else countdownSeconds = 30 * 60;
         updateCountdownDisplay();
+      } catch (error) {
+        console.error("Fetch error:", error);
+        showToast(error.message, 'error');
+        loadingEl.innerHTML = `<div class="col-span-full text-center py-10 text-[#ff3d6e] mono uppercase tracking-wider px-4">Error: ${error.message}</div>`;
+      }
+    });
       } catch (error) {
         console.error("Fetch error:", error);
         showToast(error.message, 'error');
