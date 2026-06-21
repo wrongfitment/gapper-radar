@@ -33,7 +33,7 @@
   .stock-card { transition: transform 0.25s, border-color 0.25s, background 0.25s; position: relative; overflow: hidden; }
   .stock-card::after { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, transparent 40%, rgba(255,255,255,0.02) 100%); pointer-events: none; }
   .stock-card:hover { transform: translateY(-3px); border-color: var(--border-strong); background: var(--bg-elevated); }
-  .card-extra { max-height: 0; overflow: hidden; transition: max-height 0.3s ease, opacity 0.3s ease, margin 0.3s ease; opacity: 0; margin-top: 0; padding-top: 0; border-top: 1px solid transparent; }
+  .card-extra { max-height: 0; overflow: hidden; transition: max-height 0.3s ease, opacity 0.3s ease, margin 0.3s ease, padding 0.3s ease; opacity: 0; margin-top: 0; padding-top: 0; border-top: 1px solid transparent; }
   .stock-card:hover .card-extra { max-height: 80px; opacity: 1; margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.05); }
   .countdown-ring circle.progress { transform: rotate(-90deg); transform-origin: center; transition: stroke-dashoffset 1s linear; }
   @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
@@ -719,10 +719,7 @@
         try {
           result = JSON.parse(rawText);
         } catch (e) {
-          // If it's HTML, grab the actual error title from Vercel's error page
-          const errorMatch = rawText.match(/<title>(.*?)<\/title>/i);
-          const cleanError = errorMatch ? errorMatch[1] : 'Vercel returned an HTML error page';
-          throw new Error(cleanError);
+          throw new Error(`Backend returned an HTML error page instead of data. Did you add package.json?`);
         }
         
         if (!response.ok || !result.data) {
@@ -751,12 +748,6 @@
         if (result.nextScan) countdownSeconds = Math.max(0, Math.floor((result.nextScan - Date.now()) / 1000));
         else countdownSeconds = 30 * 60;
         updateCountdownDisplay();
-      } catch (error) {
-        console.error("Fetch error:", error);
-        showToast(error.message, 'error');
-        loadingEl.innerHTML = `<div class="col-span-full text-center py-10 text-[#ff3d6e] mono uppercase tracking-wider px-4">Error: ${error.message}</div>`;
-      }
-    });
       } catch (error) {
         console.error("Fetch error:", error);
         showToast(error.message, 'error');
