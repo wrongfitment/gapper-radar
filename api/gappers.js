@@ -120,23 +120,36 @@ export default async function handler(req, res) {
       const gapPercent = ((currentPrice - prevClose) / prevClose) * 100;
       const stockInfo = STOCK_UNIVERSE.find(s => s.ticker === ticker);
       const sector = stockInfo ? stockInfo.sector : 'Equity';
+      const absGap = Math.abs(gapPercent);
       
-      if (Math.abs(gapPercent) > 1.0 && volume > 50000 && currentPrice > 1) {
+      if (absGap > 1.0 && volume > 50000 && currentPrice > 1) {
         
-        let score = 25; 
-        score += Math.min(Math.abs(gapPercent) * 2, 40); 
-        score += Math.min(volume / 100000, 20); 
-        if (currentPrice > openPrice && gapPercent > 0) score += 15; 
-        else if (currentPrice < openPrice && gapPercent < 0) score += 15; 
+        // REFINED SCORE ALGORITHM (Max 100)
+        let score = 20; // Base
+        score += Math.min(absGap * 2.5, 30); // Gap size up to 30 pts
+        score += Math.min(volume / 150000, 20); // Volume up to 20 pts (requires 3M vol for max)
+        if (currentPrice > openPrice && gapPercent > 0) score += 15; // Holding gains
+        else if (currentPrice < openPrice && gapPercent < 0) score += 15; // Holding losses
+        else score += 5; // Partial reversal
         score = Math.min(score, 100); 
 
-        // CATALYST LOGIC ENGINE
-        let catalyst = '📰 News Catalyst';
-        if (sector === 'Biotechnology' || sector === 'Healthcare') catalyst = '💊 Drug/FDA News';
-        else if (Math.abs(gapPercent) > 15) catalyst = '💸 Earnings Runner';
-        else if (volume > 2000000) catalyst = '⚡ Unusual Volume';
-        else if (sector === 'Technology' || sector === 'Software' || sector === 'Semiconductors') catalyst = '📈 Analyst Upgrade';
-        else if (sector === 'Financials' || sector === 'E-Commerce') catalyst = '📊 Merger/Acquisition';
+        // DIRECTIONAL CATALYST LOGIC ENGINE
+        let catalyst = '';
+        if (gapPercent > 0) {
+          if (sector === 'Biotechnology' || sector === 'Healthcare') catalyst = '💊 Drug/FDA News';
+          else if (absGap > 15) catalyst = '💸 Earnings Runner';
+          else if (volume > 2000000) catalyst = '⚡ Unusual Volume';
+          else if (sector === 'Technology' || sector === 'Software' || sector === 'Semiconductors') catalyst = '📈 Analyst Upgrade';
+          else if (sector === 'Financials' || sector === 'E-Commerce') catalyst = '📊 Merger/Acquisition';
+          else catalyst = '📰 News Catalyst';
+        } else {
+          if (sector === 'Biotechnology' || sector === 'Healthcare') catalyst = '⚠️ FDA Rejection';
+          else if (absGap > 15) catalyst = '📉 Earnings Miss';
+          else if (volume > 2000000) catalyst = '🔴 Panic Selling';
+          else if (sector === 'Technology' || sector === 'Software' || sector === 'Semiconductors') catalyst = '🔻 Analyst Downgrade';
+          else if (sector === 'Financials' || sector === 'E-Commerce') catalyst = '📉 Guidance Cut';
+          else catalyst = '📰 Negative News';
+        }
         
         validGappers.push({
           ticker: ticker,
