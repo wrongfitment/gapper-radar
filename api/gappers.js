@@ -72,6 +72,33 @@ const STOCK_UNIVERSE = [
 
 let cachedData = { timestamp: 0, data: [] };
 
+function classifyEarningsCatalyst({ epsActual, epsEstimate, revenueActual, revenueEstimate, guidanceDirection, gapPercent }) {
+  const tags = [];
+  const epsBeat = epsActual != null && epsEstimate != null ? epsActual - epsEstimate : null;
+  const revBeat = revenueActual != null && revenueEstimate != null ? revenueActual - revenueEstimate : null;
+
+  if (epsBeat != null) {
+    if (epsBeat > 0) tags.push({ tag: 'Earnings Beat', polarity: 'bullish' });
+    else if (epsBeat < 0) tags.push({ tag: 'Earnings Miss', polarity: 'bearish' });
+  }
+  if (revBeat != null) {
+    if (revBeat > 0) tags.push({ tag: 'Revenue Beat', polarity: 'bullish' });
+    else if (revBeat < 0) tags.push({ tag: 'Revenue Miss', polarity: 'bearish' });
+  }
+  if (guidanceDirection === 'raised') tags.push({ tag: 'Guidance Raised', polarity: 'bullish' });
+  else if (guidanceDirection === 'lowered') tags.push({ tag: 'Guidance Cut', polarity: 'bearish' });
+
+  const gapIsDown = gapPercent < 0;
+  const agreesWithGap = (t) => (gapIsDown && t.polarity === 'bearish') || (!gapIsDown && t.polarity === 'bullish');
+
+  tags.sort((a, b) => Number(agreesWithGap(b)) - Number(agreesWithGap(a)));
+
+  const primary = tags.find(agreesWithGap) ?? tags[0] ?? null;
+  const secondary = tags.find((t) => t !== primary) ?? null;
+
+  return [primary, secondary].filter(Boolean).map((t) => t.tag);
+}
+
 module.exports = async (req, res) => {
   const now = Date.now();
   const thirtyMins = 30 * 60 * 1000;
@@ -120,8 +147,7 @@ module.exports = async (req, res) => {
       const sector = stockInfo ? stockInfo.sector : 'Equity';
       const absGap = Math.abs(gapPercent);
       
-        if (absGap > 0.1 && volume > 10000 && currentPrice > 1) {
-        
+      if (absGap > 0.1 && volume > 10000 && currentPrice > 1) {
         let score = 20; 
         score += Math.min(absGap * 2.5, 30); 
         score += Math.min(volume / 150000, 20); 
@@ -183,30 +209,3 @@ module.exports = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
-
-function classifyEarningsCatalyst({ epsActual, epsEstimate, revenueActual, revenueEstimate, guidanceDirection, gapPercent }) {
-  const tags = [];
-  const epsBeat = epsActual != null && epsEstimate != null ? epsActual - epsEstimate : null;
-  const revBeat = revenueActual != null && revenueEstimate != null ? revenueActual - revenueEstimate : null;
-
-  if (epsBeat != null) {
-    if (epsBeat > 0) tags.push({ tag: 'Earnings Beat', polarity: 'bullish' });
-    else if (epsBeat < 0) tags.push({ tag: 'Earnings Miss', polarity: 'bearish' });
-  }
-  if (revBeat != null) {
-    if (revBeat > 0) tags.push({ tag: 'Revenue Beat', polarity: 'bullish' });
-    else if (revBeat < 0) tags.push({ tag: 'Revenue Miss', polarity: 'bearish' });
-  }
-  if (guidanceDirection === 'raised') tags.push({ tag: 'Guidance Raised', polarity: 'bullish' });
-  else if (guidanceDirection === 'lowered') tags.push({ tag: 'Guidance Cut', polarity: 'bearish' });
-
-  const gapIsDown = gapPercent < 0;
-  const agreesWithGap = (t) => (gapIsDown && t.polarity === 'bearish') || (!gapIsDown && t.polarity === 'bullish');
-
-  tags.sort((a, b) => Number(agreesWithGap(b)) - Number(agreesWithGap(a)));
-
-  const primary = tags.find(agreesWithGap) ?? tags[0] ?? null;
-  const secondary = tags.find((t) => t !== primary) ?? null;
-
-  return [primary, secondary].filter(Boolean).map((t) => t.tag);
-}
