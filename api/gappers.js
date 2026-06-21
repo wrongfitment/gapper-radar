@@ -79,7 +79,11 @@ export default async function handler(req, res) {
   const thirtyMins = 30 * 60 * 1000;
 
   if (now - cachedData.timestamp < thirtyMins && cachedData.data.length > 0) {
-    return res.status(200).json({ data: cachedData.data, nextScan: cachedData.timestamp + thirtyMins });
+    return res.status(200).json({ 
+      data: cachedData.data, 
+      nextScan: cachedData.timestamp + thirtyMins,
+      lastUpdated: cachedData.timestamp
+    });
   }
 
   if (!ALPACA_KEY || !ALPACA_SECRET) {
@@ -117,13 +121,14 @@ export default async function handler(req, res) {
       const stockInfo = STOCK_UNIVERSE.find(s => s.ticker === ticker);
       
       if (Math.abs(gapPercent) > 1.0 && volume > 50000 && currentPrice > 1) {
-        let score = 50; 
-        score += Math.min(Math.abs(gapPercent) * 1.5, 15); 
-        if (volume > 500000) score += 10;
-        if (volume > 2000000) score += 10; 
-        if (currentPrice > openPrice && gapPercent > 0) score += 10; 
-        if (currentPrice < openPrice && gapPercent < 0) score += 10; 
-        score = Math.min(score, 95); 
+        
+        // REFINED GAP SCORE ALGORITHM (Max 100)
+        let score = 25; // Base
+        score += Math.min(Math.abs(gapPercent) * 2, 40); // Gap size up to 40 pts
+        score += Math.min(volume / 100000, 20); // Volume up to 20 pts
+        if (currentPrice > openPrice && gapPercent > 0) score += 15; // Holding gains
+        else if (currentPrice < openPrice && gapPercent < 0) score += 15; // Holding losses
+        score = Math.min(score, 100); 
         
         validGappers.push({
           ticker: ticker,
@@ -143,6 +148,8 @@ export default async function handler(req, res) {
     }
 
     validGappers.sort((a, b) => b.gapScore - a.gapScore);
+    
+    // STRICTLY ENFORCE TOP 50
     const top50 = validGappers.slice(0, 50);
 
     if (top50.length === 0) throw new Error('No stocks met the scanner criteria.');
@@ -150,7 +157,11 @@ export default async function handler(req, res) {
     cachedData = { timestamp: now, data: top50 };
 
     res.setHeader('Cache-Control', 's-maxage=1800, stale-while-revalidate=59');
-    res.status(200).json({ data: top50, nextScan: now + thirtyMins });
+    res.status(200).json({ 
+      data: top50, 
+      nextScan: now + thirtyMins,
+      lastUpdated: now 
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
