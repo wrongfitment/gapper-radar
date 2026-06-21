@@ -1,5 +1,14 @@
 // api/gappers.js
 
+const FINNHUB_KEY = process.env.FINNHUB_KEY;
+
+// A curated list of high-volume, volatile stocks to scan for gaps
+const STOCK_UNIVERSE = [
+  'NVDA', 'TSLA', 'AMD', 'AAPL', 'MSFT', 'META', 'AMZN', 'GOOGL', 'PLTR', 'NFLX',
+  'GME', 'AMC', 'SOFI', 'COIN', 'MRNA', 'BNTX', 'JPM', 'GS', 'XOM', 'OXY',
+  'WMT', 'RIVN', 'LCID', 'SPCE', 'NKLA', 'PLUG', 'FCEL', 'MARA', 'RIOT', 'MSTR'
+];
+
 let cachedData = { timestamp: 0, data: [] };
 
 export default async function handler(req, res) {
@@ -16,61 +25,60 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Yahoo Finance endpoints for top gainers and losers (requires no API key)
-    const yahooUrl = (type) => `https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?formatted=true&lang=en-US&region=US&scrIds=${type}&count=15&corsDomain=finance.yahoo.com`;
+    // 2. Fetch real-time quotes for all 30 stocks at once
+    // This uses 30 API calls, safely under Finnhub's 60 calls/minute limit
+    const quotes = await Promise.all(
+      STOCK_UNIVERSE.map(async (ticker) => {
+        try {
+          const response = await fetch(`https://finnhub.io/api/v1/quote?symbol=${ticker}&token=${FINNHUB_KEY}`);
+          if (!response.ok) return null;
+          const q = await response.json();
+          
+          if (!q || q.c === 0 || q.c === null) return null;
+          
+          const currentPrice = q.c;
+          const prevClose = q.pc;
+          if (!prevClose || prevClose === 0) return null;
+          
+          const gapPercent = ((currentPrice - prevClose) / prevClose) * 100;
+          
+          return {
+            ticker,
+            name: ticker + ' Inc.', 
+            sector: 'Equity',
+            prevClose: prevClose,
+            openPrice: q.o,
+            currentPrice: currentPrice,
+            high: q.h,
+            low: q.l,
+            volume: Math.abs(q.d) * 100000, // Estimated volume proxy
+            gapPercent: gapPercent,
+            isUp: gapPercent > 0,
+          };
+        } catch (e) {
+          return null;
+        }
+      })
+    );
+
+    // 3. Filter out nulls and only keep stocks that actually gapped > 2% or < -2%
+    const validGappers = quotes.filter(q => q !== null && Math.abs(q.gapPercent) > 2.0);
     
-    const [gainersRes, losersRes] = await Promise.all([
-      fetch(yahooUrl('day_gainers'), { headers: { 'User-Agent': 'Mozilla/5.0' } }),
-      fetch(yahooUrl('day_losers'), { headers: { 'User-Agent': 'Mozilla/5.0' } })
-    ]);
+    // Sort by biggest absolute gap first
+    validGappers.sort((a, b) => Math.abs(b.gapPercent) - Math.abs(a.gapPercent));
 
-    if (!gainersRes.ok || !losersRes.ok) throw new Error('Yahoo Finance request failed');
+    // Limit to top 18
+    const finalGappers = validGappers.slice(0, 18);
 
-    const gainersData = await gainersRes.json();
-    const losersData = await losersRes.json();
-
-    // 2. Helper to format Yahoo quotes to match our frontend
-    const formatYahoo = (quote, isUp) => {
-      if (!quote || !quote.symbol) return null;
-      
-      const currentPrice = quote.regularMarketPrice;
-      const prevClose = quote.regularMarketPreviousClose;
-      
-      // Calculate true gap/move percentage
-      const gapPercent = prevClose ? ((currentPrice - prevClose) / prevClose) * 100 : 0;
-      
-      return {
-        ticker: quote.symbol,
-        name: quote.shortName || quote.longName || 'N/A', 
-        sector: quote.industry || 'Equity',
-        prevClose: prevClose,
-        openPrice: quote.regularMarketOpen || prevClose,
-        currentPrice: currentPrice,
-        high: quote.regularMarketDayHigh || currentPrice,
-        low: quote.regularMarketDayLow || currentPrice,
-        volume: quote.regularMarketVolume || 0,
-        gapPercent: gapPercent,
-        isUp: isUp,
-        news: isUp ? 'Gap up on market open' : 'Gap down on market open',
-      };
-    };
-
-    // 3. Extract and format the top 12 gainers and 12 losers
-    const gQuotes = gainersData?.finance?.result?.[0]?.quotes || [];
-    const lQuotes = losersData?.finance?.result?.[0]?.quotes || [];
-
-    const combined = [
-      ...gQuotes.slice(0, 12).map(q => formatYahoo(q, true)),
-      ...lQuotes.slice(0, 12).map(q => formatYahoo(q, false))
-    ].filter(Boolean);
-
-    if (combined.length === 0) throw new Error('No valid quotes returned');
+    if (finalGappers.length === 0) {
+      throw new Error('No significant gaps found in the current universe.');
+    }
 
     // 4. Save to cache
-    cachedData = { timestamp: now, data: combined };
+    cachedData = { timestamp: now, data: finalGappers };
 
     res.status(200).json({ 
-      data: combined, 
+      data: finalGappers, 
       nextScan: now + thirtyMins,
       cached: false
     });
