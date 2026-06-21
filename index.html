@@ -241,6 +241,26 @@
     let scanCounter = 0;
     let sparkIdCounter = 0;
     
+    const CACHE_KEY = 'gapperRadarCache';
+    const CACHE_TIME = 30 * 60 * 1000; // 30 mins
+    
+    function getCachedData() {
+      try {
+        const cached = localStorage.getItem(CACHE_KEY);
+        if (cached) {
+          const data = JSON.parse(cached);
+          if (Date.now() - data.timestamp < CACHE_TIME) return data;
+        }
+      } catch (e) {}
+      return null;
+    }
+    
+    function saveCachedData(data) {
+      try {
+        localStorage.setItem(CACHE_KEY, JSON.stringify({ timestamp: Date.now(), data: data }));
+      } catch (e) {}
+    }
+    
     function generateOHLCSparkline(open, high, low, current) {
       const points = 32;
       const data = [];
@@ -528,48 +548,157 @@
     document.getElementById('tvModal').addEventListener('click', (e) => { if (e.target.id === 'tvModal') closeModal(); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
     
+    // 100 highly volatile stocks to scan
+    const STOCK_UNIVERSE = [
+      'NVDA','TSLA','AMD','AAPL','MSFT','META','AMZN','GOOGL','PLTR','NFLX','GME','AMC','SOFI','COIN','MRNA','BNTX','JPM','GS','XOM','OXY',
+      'WMT','RIVN','LCID','SPCE','PLUG','FCEL','MARA','RIOT','MSTR','SNAP','SQ','BABA','NIO','SHOP','PYPL','DKNG','RBLX','U','ENPH','MU',
+      'ZM','DOCU','TWLO','NET','CRWD','OKTA','MDB','DDOG','SNOW','ROKU','BIDU','JD','RUN','AVGO','QCOM','INTC','TSM','ASML','ADBE','CRM',
+      'ORCL','UBER','LYFT','PINS','AAL','PDD','NTES','NXPI','LRCX','AMAT','MRVL','ADI','KLAC','SNPS','CDNS','FTNT','PANW','ADSK','TEAM',
+      'NOW','INTU','WDAY','IBM','HPE','DELL','ACN','CTSH','EBAY','ETSY','MELI','CPNG','SE','STNE','W','ABNB','DASH','AFRM','HOOD','COIN'
+    ];
+
+    // Helper to pause between batches
+    const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+    async function fetchStockData(ticker) {
+      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=5m&range=1d`;
+      const proxies = [
+        `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
+        `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+        `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(url)}`
+      ];
+      
+      // Try each proxy sequentially. This prevents opening 300 connections at once.
+      for (const proxy of proxies) {
+        try {
+          const res = await fetch(proxy);
+          if (res.ok) {
+            const data = await res.json();
+            if (data && data.chart && data.chart.result && data.chart.result[0]) {
+              const result = data.chart.result[0];
+              const meta = result.meta;
+              const quote = result.indicators.quote[0];
+              
+              const currentPrice = meta.regularMarketPrice;
+              const prevClose = meta.chartPreviousClose || meta.previousClose;
+              if (!currentPrice || !prevClose) continue; // Try next proxy
+              
+              const closes = quote.close || [];
+              const highs = (quote.high || []).filter(v => v !== null);
+              const lows = (quote.low || []).filter(v => v !== null);
+              const vols = (quote.volume || []).filter(v => v !== null);
+              const opens = (quote.open || []).filter(v => v !== null);
+              
+              const openPrice = opens.length > 0 ? opens[0] : currentPrice;
+              const high = highs.length > 0 ? Math.max(...highs) : currentPrice;
+              const low = lows.length > 0 ? Math.min(...lows) : currentPrice;
+              const volume = vols.length > 0 ? vols.reduce((a, b) => a + b, 0) : 0;
+              
+              let lastVal = currentPrice;
+              const sparkData = closes.map(v => {
+                if (v === null) return lastVal;
+                lastVal = v;
+                return v;
+              });
+              if (sparkData.length === 0) sparkData.push(currentPrice);
+              sparkData[sparkData.length - 1] = currentPrice;
+              
+              return {
+                ticker: meta.symbol,
+                name: meta.shortName || meta.longName || meta.symbol,
+                prevClose: prevClose,
+                openPrice: openPrice,
+                currentPrice: currentPrice,
+                high: high,
+                low: low,
+                volume: volume,
+                gapPercent: ((currentPrice - prevClose) / prevClose) * 100,
+                isUp: currentPrice >= prevClose,
+                sparkData: sparkData
+              };
+            }
+          }
+        } catch (e) {
+          // Ignore error, try next proxy
+        }
+      }
+      return null;
+    }
+    
     async function performScan(isAuto = false) {
       scanCounter++;
       
-      const loadingEl = document.getElementById('stockGrid');
-      loadingEl.innerHTML = `
-        <div class="col-span-full text-center py-10 text-[#7a8290] mono uppercase tracking-wider">
-          <div id="loadingText">Scanning hundreds of stocks...</div>
-          <div class="w-full max-w-xs mx-auto mt-4 progress-bar-bg rounded-full h-1.5 overflow-hidden">
-            <div class="progress-bar-fill h-full" id="loadingBar" style="width: 0%"></div>
-          </div>
-        </div>`;
-      document.getElementById('featuredContainer').innerHTML = '';
+      const cached = getCachedData();
+      if (cached && !isAuto) {
+        allGappers = cached.data;
+        updateStats(); renderTickerTape(); renderGrid();
+        const cachedTime = new Date(cached.timestamp);
+        document.getElementById('lastUpdate').textContent = cachedTime.toLocaleTimeString('en-US', { hour12: false });
+        countdownSeconds = Math.max(0, Math.floor((cached.timestamp + CACHE_TIME - Date.now()) / 1000));
+        updateCountdownDisplay();
+        showToast('Loaded from cache. Fetching fresh data in background...', 'info');
+      } else {
+        const loadingEl = document.getElementById('stockGrid');
+        loadingEl.innerHTML = `
+          <div class="col-span-full text-center py-10 text-[#7a8290] mono uppercase tracking-wider">
+            <div id="loadingText">Scanning 100 Top Stocks...</div>
+            <div class="w-full max-w-xs mx-auto mt-4 progress-bar-bg rounded-full h-1.5 overflow-hidden">
+              <div class="progress-bar-fill h-full" id="loadingBar" style="width: 0%"></div>
+            </div>
+          </div>`;
+        document.getElementById('featuredContainer').innerHTML = '';
+      }
       
       try {
-        const bar = document.getElementById('loadingBar');
-        if (bar) bar.style.width = '50%';
+        const tickers = [...new Set(STOCK_UNIVERSE)];
+        const results = [];
+        let completed = 0;
+        const total = tickers.length;
+        const chunkSize = 10; // Fetch 10 at a time to avoid proxy limits
         
-        // Fetch from our Vercel Backend
-        const response = await fetch('/api/gappers');
-        const result = await response.json();
-        
-        if (!response.ok || !result.data) {
-          throw new Error(result.error || 'Backend failed to return data');
+        for (let i = 0; i < tickers.length; i += chunkSize) {
+          const chunk = tickers.slice(i, i + chunkSize);
+          const chunkResults = await Promise.all(chunk.map(fetchStockData));
+          results.push(...chunkResults.filter(Boolean));
+          
+          completed += chunk.length;
+          const bar = document.getElementById('loadingBar');
+          if (bar) bar.style.width = ((completed / total) * 100) + '%';
+          const txt = document.getElementById('loadingText');
+          if (txt) txt.textContent = `Scanning market... ${completed}/${total} tickers analyzed`;
+          
+          await sleep(400); // Wait 0.4s between batches
         }
-
-        if (bar) bar.style.width = '100%';
         
-        allGappers = result.data.map(stock => {
-          const sparkData = generateOHLCSparkline(stock.openPrice, stock.high, stock.low, stock.currentPrice);
-          return { ...stock, sparkData, id: `${stock.ticker}-${scanCounter}-${Math.random()}` };
+        let validGappers = results.filter(Boolean);
+        // Filter for stocks that actually moved > 0.5%
+        validGappers = validGappers.filter(q => Math.abs(q.gapPercent) > 0.5);
+        validGappers.sort((a, b) => Math.abs(b.gapPercent) - Math.abs(a.gapPercent));
+        
+        if (validGappers.length === 0) {
+          throw new Error('Network error: Could not fetch data. Please try again.');
+        }
+        
+        // NARROW IT DOWN: Slice to Top 30 movers
+        allGappers = validGappers.slice(0, 30).map(stock => {
+          return { ...stock, id: `${stock.ticker}-${scanCounter}-${Math.random()}` };
         });
 
         updateStats(); renderTickerTape(); renderGrid();
         const now = new Date();
         document.getElementById('lastUpdate').textContent = now.toLocaleTimeString('en-US', { hour12: false });
+        
+        saveCachedData(allGappers);
+        
         countdownSeconds = 30 * 60;
         updateCountdownDisplay();
         showToast(`${isAuto ? 'Auto' : 'Manual'} scan complete · ${allGappers.length} live gappers found`, 'success');
       } catch (error) {
         console.error("Fetch error:", error);
         showToast(error.message, 'error');
-        document.getElementById('stockGrid').innerHTML = `<div class="col-span-full text-center py-10 text-[#ff3d6e] mono uppercase tracking-wider px-4">Error: ${error.message}</div>`;
+        if (!cached) {
+          document.getElementById('stockGrid').innerHTML = `<div class="col-span-full text-center py-10 text-[#ff3d6e] mono uppercase tracking-wider px-4">Error: ${error.message}</div>`;
+        }
       }
     }
     
