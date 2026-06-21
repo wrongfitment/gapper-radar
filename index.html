@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gapper Radar — Pro Premarket Scanner</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #07090d; --bg-card: #0e1218; --bg-elevated: #151a22;
+    --border: rgba(255,255,255,0.06); --border-strong: rgba(255,255,255,0.14);
+    --text: #e8eaed; --text-muted: #7a8290; --text-dim: #4b5563;
+    --up: #00ff9c; --up-soft: rgba(0,255,156,0.12);
+    --down: #ff3d6e; --down-soft: rgba(255,61,110,0.12);
+    --accent: #ffb547; --accent-soft: rgba(255,181,71,0.12);
+  }
+  * { box-sizing: border-box; }
+  html, body { background: var(--bg); color: var(--text); font-family: 'Space Grotesk', sans-serif; overflow-x: hidden; }
+  .mono { font-family: 'JetBrains Mono', monospace; font-feature-settings: 'tnum' 1; }
+  body.session-open { box-shadow: inset 0 0 120px rgba(0,255,156,0.05); }
+  body.session-pre { box-shadow: inset 0 0 120px rgba(255,181,71,0.05); }
+  body.session-after { box-shadow: inset 0 0 120px rgba(0,150,255,0.05); }
+  .ambient { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+  .ambient::before, .ambient::after { content: ''; position: absolute; border-radius: 50%; filter: blur(100px); opacity: 0.4; }
+  .ambient::before { top: -10%; left: -5%; width: 50%; height: 60%; background: radial-gradient(circle, rgba(0,255,156,0.15), transparent 70%); animation: drift1 25s ease-in-out infinite; }
+  .ambient::after { bottom: -10%; right: -5%; width: 50%; height: 60%; background: radial-gradient(circle, rgba(255,61,110,0.12), transparent 70%); animation: drift2 30s ease-in-out infinite; }
+  @keyframes drift1 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(80px,60px) scale(1.1); } }
+  @keyframes drift2 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-80px,-60px) scale(1.15); } }
+  .grid-overlay { background-image: linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px); background-size: 48px 48px; }
+  @keyframes pulse-ring { 0% { box-shadow: 0 0 0 0 currentColor; opacity: 1; } 100% { box-shadow: 0 0 0 8px transparent; opacity: 0.3; } }
+  .pulse-dot { position: relative; animation: pulse-ring 1.8s ease-out infinite; }
+  .stock-card { transition: transform 0.25s, border-color 0.25s, background 0.25s; position: relative; overflow: hidden; }
+  .stock-card::after { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, transparent 40%, rgba(255,255,255,0.02) 100%); pointer-events: none; }
+  .stock-card:hover { transform: translateY(-3px); border-color: var(--border-strong); background: var(--bg-elevated); }
+  .countdown-ring circle.progress { transform: rotate(-90deg); transform-origin: center; transition: stroke-dashoffset 1s linear; }
+  @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+  .marquee-track { animation: marquee 80s linear infinite; width: max-content; }
+  .marquee-track:hover { animation-play-state: paused; }
+  @keyframes card-enter { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+  .card-enter { animation: card-enter 0.5s ease-out backwards; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: #1f2630; border-radius: 5px; }
+  ::selection { background: var(--accent); color: var(--bg); }
+  .filter-btn { transition: all 0.2s; }
+  .filter-btn.active { background: var(--text); color: var(--bg); }
+  .glow-up-text { text-shadow: 0 0 24px rgba(0,255,156,0.4); }
+  .glow-down-text { text-shadow: 0 0 24px rgba(255,61,110,0.4); }
+  @keyframes toast-in { from { transform: translateX(120%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+  .toast { animation: toast-in 0.4s cubic-bezier(0.4,0,0.2,1); }
+  .toast.out { animation: toast-in 0.4s cubic-bezier(0.4,0,0.2,1) reverse; }
+  .modal-overlay { background: rgba(0,0,0,0.8); backdrop-filter: blur(8px); }
+  .modal-content { background: #0e1218; border: 1px solid rgba(255,255,255,0.1); }
+  input[type="range"] { -webkit-appearance: none; appearance: none; background: rgba(255,255,255,0.1); height: 4px; border-radius: 2px; outline: none; }
+  input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 14px; height: 14px; border-radius: 50%; background: var(--accent); cursor: pointer; border: 2px solid var(--bg); }
+  .search-input { transition: all 0.2s; }
+  .search-input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(255,181,71,0.2); }
+  .score-bar-bg { background: rgba(255,255,255,0.05); height: 4px; border-radius: 2px; overflow: hidden; }
+  .score-bar-fill { height: 100%; transition: width 0.5s ease; }
+</style>
+</head>
+<body class="session-open">
+  <div class="ambient"></div>
+  
+  <div class="relative z-10 border-b border-white/5 bg-black/50 backdrop-blur-sm overflow-hidden">
+    <div class="marquee-track flex whitespace-nowrap py-2.5" id="tickerTape"></div>
+  </div>
+  
+  <header class="relative z-10 border-b border-white/5 grid-overlay">
+    <div class="max-w-[1600px] mx-auto px-4 md:px-6 py-5">
+      <div class="flex items-center justify-between flex-wrap gap-4">
+        <div class="flex items-center gap-4">
+          <div class="relative">
+            <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-[#00ff9c] via-[#00d8ff] to-[#ffb547] flex items-center justify-center shadow-lg shadow-[#00ff9c]/20">
+              <svg class="w-7 h-7 text-black" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/>
+              </svg>
+            </div>
+            <div class="absolute -top-0.5 -right-0.5 w-3 h-3 bg-[#00ff9c] rounded-full pulse-dot text-[#00ff9c]"></div>
+          </div>
+          <div>
+            <h1 class="text-2xl md:text-3xl font-black tracking-tight leading-none">GAPPER RADAR</h1>
+            <p class="text-[10px] md:text-xs text-[#7a8290] mono uppercase tracking-[0.2em] mt-1">Pro Premarket Scanner</p>
+          </div>
+        </div>
+        
+        <div class="flex items-center gap-3 md:gap-6 flex-wrap">
+          <div class="text-right hidden sm:block">
+            <div class="text-[10px] text-[#7a8290] mono uppercase tracking-wider">Market</div>
+            <div class="flex items-center gap-2 justify-end mt-0.5" id="marketStatus">
+              <span class="w-2 h-2 bg-[#00ff9c] rounded-full pulse-dot text-[#00ff9c]"></span>
+              <span class="text-sm font-bold">OPEN</span>
+            </div>
+          </div>
+          
+          <div class="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-[#0e1218] border border-white/5">
+            <div class="relative w-12 h-12">
+              <svg class="countdown-ring w-12 h-12" viewBox="0 0 56 56">
+                <circle cx="28" cy="28" r="24" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="3"/>
+                <circle class="progress" id="countdownCircle" cx="28" cy="28" r="24" fill="none" stroke="#ffb547" stroke-width="3" stroke-dasharray="150.8" stroke-dashoffset="0" stroke-linecap="round"/>
+              </svg>
+              <div class="absolute inset-0 flex items-center justify-center">
+                <span class="mono text-xs font-black" id="countdownNum">30</span>
+              </div>
+            </div>
+            <div>
+              <div class="text-[10px] text-[#7a8290] mono uppercase tracking-wider">Next Scan</div>
+              <div class="text-sm font-bold mono" id="countdownTime">30:00</div>
+            </div>
+          </div>
+          
+          <button id="forceRefresh" class="px-5 py-3 rounded-xl bg-[#ffb547] text-black font-bold text-sm hover:brightness-110 active:scale-95 transition-all flex items-center gap-2">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 12a9 9 0 11-3-6.7L21 8"/><path d="M21 3v5h-5"/>
+            </svg>
+            Force Scan
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <section class="relative z-10 border-b border-white/5 grid-overlay">
+    <div class="max-w-[1600px] mx-auto px-4 md:px-6 py-10 text-center">
+      <h2 class="text-2xl md:text-4xl font-black tracking-tight mb-3">Spot the Market's Biggest Movers Instantly</h2>
+      <p class="text-sm md:text-base text-[#7a8290] max-w-3xl mx-auto mb-6">
+        Track real-time pre-market gap ups and downs. We scan high-beta stocks for >1% overnight moves, score them by momentum and volume confirmation, and show you exactly where the action is.
+      </p>
+      <div class="flex items-center justify-center gap-6 flex-wrap text-xs mono uppercase tracking-wider">
+        <span class="flex items-center gap-2 text-[#00ff9c]"><span class="w-2 h-2 rounded-full bg-[#00ff9c] pulse-dot text-[#00ff9c]"></span> Live Data: Alpaca Markets</span>
+        <span class="flex items-center gap-2 text-[#ffb547]"><span class="w-2 h-2 rounded-full bg-[#ffb547]"></span> Auto-Scan: Every 30 Mins</span>
+        <span class="flex items-center gap-2 text-[#00d8ff]"><span class="w-2 h-2 rounded-full bg-[#00d8ff]"></span> Universe: 195 Tickers (Top 50 Shown)</span>
+      </div>
+    </div>
+  </section>
+  
+  <section class="relative z-10 border-b border-white/5 bg-black/20">
+    <div class="max-w-[1600px] mx-auto px-4 md:px-6 py-4">
+      <div class="flex items-center justify-between flex-wrap gap-4 mb-4">
+        <input id="searchInput" type="text" placeholder="Search ticker..." class="search-input bg-[#0e1218] border border-white/5 rounded-lg px-4 py-2 text-sm w-full sm:w-48 mono focus:outline-none">
+        
+        <div class="flex items-center gap-4 flex-wrap">
+          <div class="flex items-center gap-2">
+            <span class="text-[10px] text-[#7a8290] mono uppercase">Min Gap:</span>
+            <input type="range" id="gapSlider" min="0" max="15" step="0.5" value="1.0" class="w-24">
+            <span class="text-xs text-[#ffb547] mono w-8" id="gapVal">1.0%</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-[10px] text-[#7a8290] mono uppercase">Min Vol:</span>
+            <input type="range" id="volSlider" min="0" max="5000000" step="100000" value="50000" class="w-24">
+            <span class="text-xs text-[#ffb547] mono w-10" id="volVal">50K</span>
+          </div>
+        </div>
+        
+        <div class="flex items-center gap-2 flex-wrap" id="filterButtons">
+          <button data-filter="all" class="filter-btn active px-4 py-2 rounded-lg text-sm font-bold">All</button>
+          <button data-filter="up" class="filter-btn px-4 py-2 rounded-lg bg-[#0e1218] border border-white/5 text-sm font-bold">Gap Ups</button>
+          <button data-filter="down" class="filter-btn px-4 py-2 rounded-lg bg-[#0e1218] border border-white/5 text-sm font-bold">Gap Downs</button>
+        </div>
+        
+        <div class="flex items-center gap-3 flex-wrap">
+          <span class="text-[10px] text-[#7a8290] mono uppercase tracking-wider">Sort</span>
+          <select id="sortSelect" class="px-3 py-2 rounded-lg bg-[#0e1218] border border-white/5 text-sm font-bold mono cursor-pointer hover:border-white/20">
+            <option value="score-desc">Gap Score ↓</option>
+            <option value="gap-desc">Gap % ↓</option>
+            <option value="volume-desc">Volume ↓</option>
+          </select>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 flex-wrap" id="sectorPills"></div>
+    </div>
+  </section>
+  
+  <section class="relative z-10 border-b border-white/5 bg-black/20">
+    <div class="max-w-[1600px] mx-auto px-4 md:px-6 py-4">
+      <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div class="rounded-xl bg-[#0e1218] border border-white/5 p-4">
+          <div class="text-[10px] text-[#7a8290] mono uppercase tracking-wider mb-1">Total Gappers</div>
+          <div class="text-2xl font-black mono" id="statTotal">—</div>
+        </div>
+        <div class="rounded-xl bg-[#0e1218] border border-white/5 p-4">
+          <div class="text-[10px] text-[#7a8290] mono uppercase tracking-wider mb-1">Gap Ups</div>
+          <div class="text-2xl font-black mono text-[#00ff9c]" id="statUps">—</div>
+        </div>
+        <div class="rounded-xl bg-[#0e1218] border border-white/5 p-4">
+          <div class="text-[10px] text-[#7a8290] mono uppercase tracking-wider mb-1">Gap Downs</div>
+          <div class="text-2xl font-black mono text-[#ff3d6e]" id="statDowns">—</div>
+        </div>
+        <div class="rounded-xl bg-[#0e1218] border border-white/5 p-4">
+          <div class="text-[10px] text-[#7a8290] mono uppercase tracking-wider mb-1">Biggest Move</div>
+          <div class="text-2xl font-black mono text-[#ffb547]" id="statBiggest">—</div>
+        </div>
+        <div class="rounded-xl bg-[#0e1218] border border-white/5 p-4">
+          <div class="text-[10px] text-[#7a8290] mono uppercase tracking-wider mb-1">Avg Gap Score</div>
+          <div class="text-2xl font-black mono" id="statScore">—</div>
+        </div>
+      </div>
+    </div>
+  </section>
+  
+  <section class="relative z-10">
+    <div class="max-w-[1600px] mx-auto px-4 md:px-6 py-6">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4" id="featuredContainer"></div>
+    </div>
+  </section>
+  
+  <section class="relative z-10">
+    <div class="max-w-[1600px] mx-auto px-4 md:px-6 pb-12">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-[10px] text-[#7a8290] mono uppercase tracking-[0.2em]">All Gappers</h2>
+        <span class="text-[10px] text-[#7a8290] mono uppercase tracking-wider" id="resultCount">0 results</span>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3" id="stockGrid"></div>
+    </div>
+  </section>
+  
+  <footer class="relative z-10 border-t border-white/5 py-8 bg-black/30">
+    <div class="max-w-[1600px] mx-auto px-4 md:px-6 grid md:grid-cols-3 gap-8">
+      <div>
+        <h4 class="text-xs font-bold text-white mb-2 mono uppercase tracking-wider">Methodology</h4>
+        <p class="text-xs text-[#7a8290] leading-relaxed">
+          Scans top high-volume tickers for >1% overnight gaps. <br><br>
+          <strong class="text-[#ffb547]">Gap Continuation Score (0-95):</strong> Algorithm factors in gap magnitude, relative volume confirmation (>500k shares), and intraday price action relative to the open to estimate momentum strength.
+        </p>
+      </div>
+      <div>
+        <h4 class="text-xs font-bold text-white mb-2 mono uppercase tracking-wider">Data & Trust</h4>
+        <p class="text-xs text-[#7a8290] leading-relaxed">
+          Real-time market data provided by Alpaca Markets API. <br><br>
+          The scanner universe is currently restricted to a curated list of 195 highly liquid, high-beta stocks to ensure real-time reliability. Snapshots are cached for 30 minutes to prevent API rate limits.
+        </p>
+      </div>
+      <div>
+        <h4 class="text-xs font-bold text-white mb-2 mono uppercase tracking-wider">Premium & Alerts</h4>
+        <p class="text-xs text-[#7a8290] leading-relaxed mb-2">
+          Upgrade for SMS/Discord real-time gap alerts, dynamic S&P 500 screening, and backtested historical gap success rates.
+        </p>
+        <button class="text-xs bg-[#ffb547] text-black font-bold px-3 py-1.5 rounded mono uppercase tracking-wider hover:brightness-110">Upgrade to PRO</button>
+      </div>
+    </div>
+    <div class="max-w-[1600px] mx-auto px-4 md:px-6 mt-8 pt-4 border-t border-white/5">
+      <p class="text-[10px] text-[#4b5563] mono uppercase tracking-wider text-center">
+        Gapper Radar v3.0 · Not financial advice · Trading involves substantial risk of loss
+      </p>
+    </div>
+  </footer>
+  
+  <div id="toastContainer" class="fixed bottom-6 right-6 z-50 flex flex-col gap-2 max-w-sm"></div>
+  
+  <div id="tvModal" class="modal-overlay fixed inset-0 z-[200] hidden items-center justify-center p-4">
+    <div class="modal-content rounded-2xl w-full max-w-5xl max-h-[90vh] overflow-y-auto relative">
+      <div class="sticky top-0 bg-[#0e1218] z-10 flex items-center justify-between p-4 border-b border-white/5">
+        <div>
+          <h3 id="modalTicker" class="text-2xl font-black tracking-tight"></h3>
+          <p id="modalName" class="text-xs text-[#7a8290]"></p>
+        </div>
+        <button id="closeModal" class="text-[#7a8290] hover:text-white text-3xl leading-none">&times;</button>
+      </div>
+      <div class="p-4 border-b border-white/5">
+        <div id="tvChartContainer" class="w-full h-[400px]"></div>
+      </div>
+      <div class="p-4">
+        <h4 class="text-[10px] text-[#7a8290] mono uppercase tracking-[0.2em] mb-3">Financials & Fundamentals</h4>
+        <div id="tvFinContainer" class="w-full"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function formatVolume(v) {
+      if (!v) return '0';
+      if (v >= 1e9) return (v / 1e9).toFixed(2) + 'B';
+      if (v >= 1e6) return (v / 1e6).toFixed(2) + 'M';
+      if (v >= 1e3) return (v / 1e3).toFixed(1) + 'K';
+      return v.toFixed(0);
+    }
+    
+    function formatPrice(p) {
+      if (!p && p !== 0) return '—';
+      if (p < 1) return p.toFixed(4);
+      if (p < 10) return p.toFixed(3);
+      return p.toFixed(2);
+    }
+    
+    let allGappers = [];
+    let currentFilter = 'all';
+    let currentSort = 'score-desc';
+    let currentSector = 'all';
+    let currentSearch = '';
+    let minGap = 1.0;
+    let minVol = 50000;
+    let countdownSeconds = 30 * 60;
+    let countdownInterval = null;
+    
+    function generateOHLCSparkline(open, high, low, current) {
+      const points = 32;
+      const data = [];
+      const safeOpen = open || current;
+      const safeHigh = high || current;
+      const safeLow = low || current;
+      
+      for(let i=0; i<points; i++) {
+        const progress = i / (points - 1);
+        let target;
+        if (progress < 0.25) {
+          const p = progress / 0.25;
+          target = safeOpen + (safeLow - safeOpen) * p;
+        } else if (progress < 0.75) {
+          const p = (progress - 0.25) / 0.5;
+          target = safeLow + (safeHigh - safeLow) * p;
+        } else {
+          const p = (progress - 0.75) / 0.25;
+          target = safeHigh + (current - safeHigh) * p;
+        }
+        const noise = target * (Math.random() - 0.5) * 0.005;
+        data.push(target + noise);
+      }
+      data[0] = safeOpen;
+      data[7] = safeLow; 
+      data[23] = safeHigh; 
+      data[31] = current;
+      return data;
+    }
+    
+    function renderSparkline(data, isUp, width = 200, height = 40, gradientId) {
+      if (!data || data.length < 2) return '';
+      const min = Math.min(...data);
+      const max = Math.max(...data);
+      const range = Math.max(max - min, 0.0001);
+      const stepX = width / (data.length - 1);
+      const points = data.map((v, i) => {
+        const x = i * stepX;
+        const y = height - ((v - min) / range) * (height - 4) - 2;
+        return `${x.toFixed(2)},${y.toFixed(2)}`;
+      }).join(' ');
+      const color = isUp ? '#00ff9c' : '#ff3d6e';
+      const areaPoints = `0,${height} ${points} ${width},${height}`;
+      return `
+        <svg viewBox="0 0 ${width} ${height}" class="w-full h-full" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="${gradientId}" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="${color}" stop-opacity="0.35"/>
+              <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <polyline points="${areaPoints}" fill="url(#${gradientId})" stroke="none"/>
+          <polyline points="${points}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+        </svg>
+      `;
+    }
+    
+    function renderStockCard(stock, index) {
+      const gapClass = stock.isUp ? 'text-[#00ff9c]' : 'text-[#ff3d6e]';
+      const gapSign = stock.isUp ? '+' : '';
+      const bgTint = stock.isUp ? 'rgba(0,255,156,0.06)' : 'rgba(255,61,110,0.06)';
+      const borderTint = stock.isUp ? 'rgba(0,255,156,0.18)' : 'rgba(255,61,110,0.18)';
+      const gradId = `grad-${stock.id}-${index}`;
+      
+      const isHighMomentum = stock.gapScore >= 75;
+      const isVolSpike = stock.volume >= 1500000;
+      const scoreColor = stock.gapScore > 70 ? '#00ff9c' : stock.gapScore > 50 ? '#ffb547' : '#ff3d6e';
+      
+      return `
+        <div class="stock-card card-enter rounded-xl bg-[#0e1218] border border-white/5 p-4 cursor-pointer" 
+             style="animation-delay: ${index * 30}ms; border-left: 2px solid ${borderTint};"
+             data-ticker="${stock.ticker}" data-name="${stock.name}">
+          <div class="flex items-start justify-between mb-3 gap-2">
+            <div class="min-w-0">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="text-lg font-black tracking-tight">${stock.ticker}</span>
+                <span class="px-1.5 py-0.5 rounded text-[9px] mono font-bold uppercase tracking-wider" 
+                      style="background: ${bgTint}; color: ${stock.isUp ? '#00ff9c' : '#ff3d6e'}; border: 1px solid ${borderTint};">
+                  ${stock.isUp ? 'LONG' : 'SHORT'}
+                </span>
+                ${isHighMomentum ? `<span class="px-1.5 py-0.5 rounded text-[9px] mono font-bold uppercase tracking-wider bg-[#00ff9c]/10 text-[#00ff9c] border border-[#00ff9c]/30">🔥 Momentum</span>` : ''}
+                ${isVolSpike ? `<span class="px-1.5 py-0.5 rounded text-[9px] mono font-bold uppercase tracking-wider bg-[#00d8ff]/10 text-[#00d8ff] border border-[#00d8ff]/30">🚀 Vol Spike</span>` : ''}
+              </div>
+              <div class="text-xs text-[#7a8290] mt-0.5 truncate">${stock.name}</div>
+            </div>
+            <div class="text-right shrink-0">
+              <div class="text-lg font-bold mono">$${formatPrice(stock.currentPrice)}</div>
+              <div class="text-sm font-black mono ${gapClass}">${gapSign}${stock.gapPercent.toFixed(2)}%</div>
+            </div>
+          </div>
+          
+          <div class="h-10 mb-3 -mx-1">
+            ${renderSparkline(stock.sparkData, stock.isUp, 200, 40, gradId)}
+          </div>
+          
+          <div class="grid grid-cols-4 gap-2 text-xs mb-3">
+            <div>
+              <div class="text-[#7a8290] mono uppercase tracking-wider text-[9px]">Open</div>
+              <div class="font-bold mono">$${formatPrice(stock.openPrice)}</div>
+            </div>
+            <div>
+              <div class="text-[#7a8290] mono uppercase tracking-wider text-[9px]">High</div>
+              <div class="font-bold mono text-[#00ff9c]">$${formatPrice(stock.high)}</div>
+            </div>
+            <div>
+              <div class="text-[#7a8290] mono uppercase tracking-wider text-[9px]">Low</div>
+              <div class="font-bold mono text-[#ff3d6e]">$${formatPrice(stock.low)}</div>
+            </div>
+            <div>
+              <div class="text-[#7a8290] mono uppercase tracking-wider text-[9px]">Vol</div>
+              <div class="font-bold mono">${formatVolume(stock.volume)}</div>
+            </div>
+          </div>
+          
+          <div class="pt-3 border-t border-white/5">
+            <div class="flex items-center justify-between mb-1">
+              <div class="text-[9px] text-[#7a8290] mono uppercase tracking-wider">Gap Continuation Score</div>
+              <div class="text-sm font-black mono" style="color: ${scoreColor}">${stock.gapScore} / 95</div>
+            </div>
+            <div class="score-bar-bg">
+              <div class="score-bar-fill" style="width: ${(stock.gapScore / 95) * 100}%; background: ${scoreColor};"></div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+    
+    function renderFeaturedCard(stock, label, index) {
+      const gapClass = stock.isUp ? 'text-[#00ff9c] glow-up-text' : 'text-[#ff3d6e] glow-down-text';
+      const gapSign = stock.isUp ? '+' : '';
+      const bgGradient = stock.isUp 
+        ? 'radial-gradient(ellipse at top right, rgba(0,255,156,0.10), transparent 60%)'
+        : 'radial-gradient(ellipse at top right, rgba(255,61,110,0.10), transparent 60%)';
+      const gradId = `feat-grad-${stock.id}-${index}`;
+      const scoreColor = stock.gapScore > 70 ? '#00ff9c' : stock.gapScore > 50 ? '#ffb547' : '#ff3d6e';
+      
+      return `
+        <div class="rounded-2xl bg-[#0e1218] border border-white/5 p-5 relative overflow-hidden card-enter cursor-pointer"
+             style="background-image: ${bgGradient};"
+             data-ticker="${stock.ticker}" data-name="${stock.name}">
+          <div class="flex items-start justify-between mb-4 gap-3 flex-wrap">
+            <div>
+              <div class="text-[10px] text-[#7a8290] mono uppercase tracking-[0.2em] mb-1">${label}</div>
+              <div class="flex items-baseline gap-3 flex-wrap">
+                <span class="text-3xl font-black tracking-tight">${stock.ticker}</span>
+                <span class="text-sm text-[#9ca3af]">${stock.name}</span>
+              </div>
+            </div>
+            <div class="text-right">
+              <div class="text-3xl font-black mono ${gapClass}">${gapSign}${stock.gapPercent.toFixed(2)}%</div>
+              <div class="text-lg font-bold mono">$${formatPrice(stock.currentPrice)}</div>
+            </div>
+          </div>
+          <div class="h-16 mb-4 -mx-2">
+            ${renderSparkline(stock.sparkData, stock.isUp, 500, 64, gradId)}
+          </div>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs mb-4">
+            <div>
+              <div class="text-[#7a8290] mono uppercase tracking-wider text-[9px]">Prev Close</div>
+              <div class="font-bold mono">$${formatPrice(stock.prevClose)}</div>
+            </div>
+            <div>
+              <div class="text-[#7a8290] mono uppercase tracking-wider text-[9px]">Open</div>
+              <div class="font-bold mono">$${formatPrice(stock.openPrice)}</div>
+            </div>
+            <div>
+              <div class="text-[#7a8290] mono uppercase tracking-wider text-[9px]">High</div>
+              <div class="font-bold mono text-[#00ff9c]">$${formatPrice(stock.high)}</div>
+            </div>
+            <div>
+              <div class="text-[#7a8290] mono uppercase tracking-wider text-[9px]">Low</div>
+              <div class="font-bold mono text-[#ff3d6e]">$${formatPrice(stock.low)}</div>
+            </div>
+          </div>
+          <div class="pt-4 border-t border-white/5">
+            <div class="flex items-center justify-between mb-1">
+              <div class="text-[9px] text-[#7a8290] mono uppercase tracking-wider">Gap Continuation Score</div>
+              <div class="text-lg font-black mono" style="color: ${scoreColor}">${stock.gapScore} / 95</div>
+            </div>
+            <div class="score-bar-bg h-1.5">
+              <div class="score-bar-fill" style="width: ${(stock.gapScore / 95) * 100}%; background: ${scoreColor};"></div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+    
+    function updateStats() {
+      const ups = allGappers.filter(g => g.isUp);
+      const downs = allGappers.filter(g => !g.isUp);
+      const biggest = allGappers.reduce((max, g) => Math.abs(g.gapPercent) > Math.abs(max?.gapPercent || 0) ? g : max, null);
+      const avgScore = allGappers.reduce((sum, g) => sum + g.gapScore, 0) / Math.max(allGappers.length, 1);
+      
+      document.getElementById('statTotal').textContent = allGappers.length;
+      document.getElementById('statUps').textContent = ups.length;
+      document.getElementById('statDowns').textContent = downs.length;
+      if (biggest) {
+        const el = document.getElementById('statBiggest');
+        el.textContent = (biggest.isUp ? '+' : '') + biggest.gapPercent.toFixed(1) + '%';
+        el.style.color = biggest.isUp ? '#00ff9c' : '#ff3d6e';
+      }
+      document.getElementById('statScore').textContent = avgScore.toFixed(0);
+    }
+    
+    function renderGrid() {
+      let filtered = [...allGappers];
+      
+      if (currentFilter === 'up') filtered = filtered.filter(g => g.isUp);
+      else if (currentFilter === 'down') filtered = filtered.filter(g => !g.isUp);
+      
+      if (currentSector !== 'all') filtered = filtered.filter(g => g.sector === currentSector);
+      if (currentSearch) filtered = filtered.filter(g => g.ticker.includes(currentSearch.toUpperCase()) || g.name.toUpperCase().includes(currentSearch.toUpperCase()));
+      
+      filtered = filtered.filter(g => Math.abs(g.gapPercent) >= minGap && g.volume >= minVol);
+      
+      const [field, dir] = currentSort.split('-');
+      filtered.sort((a, b) => {
+        let av, bv;
+        if (field === 'gap') { av = a.gapPercent; bv = b.gapPercent; }
+        else if (field === 'volume') { av = a.volume; bv = b.volume; }
+        else if (field === 'score') { av = a.gapScore; bv = b.gapScore; }
+        return dir === 'desc' ? bv - av : av - bv;
+      });
+      
+      const topUp = [...filtered].filter(g => g.isUp).sort((a, b) => b.gapScore - a.gapScore)[0];
+      const topDown = [...filtered].filter(g => !g.isUp).sort((a, b) => a.gapScore - b.gapScore)[0];
+      const featuredHTML = [];
+      if (topUp) featuredHTML.push(renderFeaturedCard(topUp, 'Top Gap Up', 1));
+      if (topDown) featuredHTML.push(renderFeaturedCard(topDown, 'Top Gap Down', 2));
+      document.getElementById('featuredContainer').innerHTML = featuredHTML.join('');
+      
+      const featuredTickers = [topUp?.ticker, topDown?.ticker].filter(Boolean);
+      const gridStocks = filtered.filter(s => !featuredTickers.includes(s.ticker));
+      document.getElementById('stockGrid').innerHTML = gridStocks.map((s, i) => renderStockCard(s, i)).join('');
+      document.getElementById('resultCount').textContent = `${filtered.length} results`;
+    }
+    
+    function renderSectorPills() {
+      const sectors = ['all', ...new Set(allGappers.map(g => g.sector))];
+      const html = sectors.map(sector => `
+        <button data-sector="${sector}" class="sector-pill px-3 py-1 rounded-full text-xs font-bold mono ${sector === currentSector ? 'bg-[#ffb547] text-black' : 'bg-[#0e1218] border border-white/5 text-[#7a8290] hover:border-white/20'}">${sector === 'all' ? 'All Sectors' : sector}</button>
+      `).join('');
+      document.getElementById('sectorPills').innerHTML = html;
+      
+      document.querySelectorAll('.sector-pill').forEach(pill => {
+        pill.addEventListener('click', (e) => {
+          currentSector = e.target.dataset.sector;
+          renderSectorPills();
+          renderGrid();
+        });
+      });
+    }
+    
+    function renderTickerTape() {
+      const tape = allGappers.slice(0, 14);
+      const items = tape.map(s => {
+        const cls = s.isUp ? 'text-[#00ff9c]' : 'text-[#ff3d6e]';
+        const sign = s.isUp ? '+' : '';
+        return `<span class="mono text-xs mx-5 flex items-center gap-2">
+          <span class="font-bold text-white">${s.ticker}</span>
+          <span class="text-[#7a8290]">$${formatPrice(s.currentPrice)}</span>
+          <span class="${cls} font-bold">${sign}${s.gapPercent.toFixed(2)}%</span>
+        </span>`;
+      }).join('');
+      document.getElementById('tickerTape').innerHTML = `<div class="flex items-center">${items}${items}</div>`;
+    }
+    
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      const colors = {
+        success: 'bg-[#00ff9c]/10 border-[#00ff9c]/40 text-[#00ff9c]',
+        error: 'bg-[#ff3d6e]/10 border-[#ff3d6e]/40 text-[#ff3d6e]',
+        info: 'bg-[#ffb547]/10 border-[#ffb547]/40 text-[#ffb547]',
+      };
+      toast.className = `toast px-4 py-3 rounded-lg border backdrop-blur-md text-sm font-bold mono ${colors[type]}`;
+      toast.textContent = message;
+      container.appendChild(toast);
+      setTimeout(() => { toast.classList.add('out'); setTimeout(() => toast.remove(), 400); }, 4500);
+    }
+    
+    function openStockModal(ticker, name) {
+      document.getElementById('modalTicker').textContent = ticker;
+      document.getElementById('modalName').textContent = name;
+      const chartC = document.getElementById('tvChartContainer');
+      const finC = document.getElementById('tvFinContainer');
+      chartC.innerHTML = ''; finC.innerHTML = '';
+      
+      const chartScript = document.createElement('script');
+      chartScript.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
+      chartScript.async = true;
+      chartScript.innerHTML = JSON.stringify({
+        "autosize": true, "symbol": ticker, "interval": "5", "timezone": "Etc/UTC",
+        "theme": "dark", "style": "1", "locale": "en", "hide_side_toolbar": false,
+        "allow_symbol_change": true, "details": true, "hotlist": false, "calendar": false
+      });
+      chartC.appendChild(chartScript);
+
+      const finScript = document.createElement('script');
+      finScript.src = "https://s3.tradingview.com/external-embedding/embed-widget-financials.js";
+      finScript.async = true;
+      finScript.innerHTML = JSON.stringify({
+        "isTransparent": true, "displayMode": "regular", "width": "100%", "height": 400,
+        "colorTheme": "dark", "symbol": ticker, "locale": "en"
+      });
+      finC.appendChild(finScript);
+
+      const modal = document.getElementById('tvModal');
+      modal.classList.remove('hidden'); modal.classList.add('flex');
+    }
+
+    function closeModal() {
+      const modal = document.getElementById('tvModal');
+      modal.classList.add('hidden'); modal.classList.remove('flex');
+      document.getElementById('tvChartContainer').innerHTML = '';
+      document.getElementById('tvFinContainer').innerHTML = '';
+    }
+
+    document.getElementById('closeModal').addEventListener('click', closeModal);
+    document.getElementById('tvModal').addEventListener('click', (e) => { if (e.target.id === 'tvModal') closeModal(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+    
+    async function performScan(isAuto = false) {
+      const loadingEl = document.getElementById('stockGrid');
+      loadingEl.innerHTML = `<div class="col-span-full text-center py-10 text-[#7a8290] mono uppercase tracking-wider">Fetching secure data from backend...</div>`;
+      document.getElementById('featuredContainer').innerHTML = '';
+      
+      try {
+        const response = await fetch('/api/gappers');
+        const rawText = await response.text();
+        let result;
+        try {
+          result = JSON.parse(rawText);
+        } catch (e) {
+          throw new Error(`Backend returned an HTML error page instead of data. Did you add package.json?`);
+        }
+        
+        if (!response.ok || !result.data) {
+          throw new Error(result.error || `Backend Error: Status ${response.status}`);
+        }
+
+        allGappers = result.data.map(stock => {
+          const sparkData = generateOHLCSparkline(stock.openPrice, stock.high, stock.low, stock.currentPrice);
+          return { ...stock, sparkData, id: `${stock.ticker}-${Math.random()}` };
+        });
+
+        updateStats(); renderTickerTape(); renderSectorPills(); renderGrid();
+        showToast(`${isAuto ? 'Auto' : 'Manual'} scan complete · ${allGappers.length} pro gappers found`, 'success');
+        
+        if (result.nextScan) countdownSeconds = Math.max(0, Math.floor((result.nextScan - Date.now()) / 1000));
+        else countdownSeconds = 30 * 60;
+        updateCountdownDisplay();
+      } catch (error) {
+        console.error("Fetch error:", error);
+        showToast(error.message, 'error');
+        loadingEl.innerHTML = `<div class="col-span-full text-center py-10 text-[#ff3d6e] mono uppercase tracking-wider px-4">Error: ${error.message}</div>`;
+      }
+    }
+    
+    function updateCountdownDisplay() {
+      const mins = Math.floor(countdownSeconds / 60);
+      const secs = countdownSeconds % 60;
+      document.getElementById('countdownTime').textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+      document.getElementById('countdownNum').textContent = mins;
+      const progress = countdownSeconds / (30 * 60);
+      const offset = (2 * Math.PI * 24) * (1 - progress);
+      document.getElementById('countdownCircle').style.strokeDashoffset = offset;
+    }
+    
+    function startCountdown() {
+      if (countdownInterval) clearInterval(countdownInterval);
+      countdownInterval = setInterval(() => {
+        countdownSeconds--;
+        if (countdownSeconds <= 0) performScan(true);
+        else updateCountdownDisplay();
+      }, 1000);
+    }
+    
+    function updateMarketStatus() {
+      const now = new Date();
+      const hours = now.getHours(), mins = now.getMinutes(), day = now.getDay();
+      const time = hours + mins / 60;
+      let status, color, sessionClass;
+      
+      document.body.classList.remove('session-open', 'session-pre', 'session-after');
+      
+      if (day === 0 || day === 6) { status = 'CLOSED · WEEKEND'; color = '#7a8290'; sessionClass = ''; }
+      else if (time >= 4 && time < 9.5) { status = 'PRE-MARKET'; color = '#ffb547'; sessionClass = 'session-pre'; }
+      else if (time >= 9.5 && time < 16) { status = 'OPEN'; color = '#00ff9c'; sessionClass = 'session-open'; }
+      else if (time >= 16 && time < 20) { status = 'AFTER HOURS'; color = '#0096ff'; sessionClass = 'session-after'; }
+      else { status = 'CLOSED'; color = '#7a8290'; sessionClass = ''; }
+      
+      if (sessionClass) document.body.classList.add(sessionClass);
+      
+      const el = document.getElementById('marketStatus');
+      el.innerHTML = `<span class="w-2 h-2 rounded-full pulse-dot" style="background: ${color}; color: ${color};"></span><span class="text-sm font-bold" style="color: ${color};">${status}</span>`;
+    }
+    
+    document.getElementById('filterButtons').addEventListener('click', (e) => {
+      const btn = e.target.closest('.filter-btn');
+      if (!btn) return;
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active'); currentFilter = btn.dataset.filter; renderGrid();
+    });
+    
+    document.getElementById('searchInput').addEventListener('input', (e) => {
+      currentSearch = e.target.value;
+      renderGrid();
+    });
+    
+    document.getElementById('gapSlider').addEventListener('input', (e) => {
+      minGap = parseFloat(e.target.value);
+      document.getElementById('gapVal').textContent = minGap.toFixed(1) + '%';
+      renderGrid();
+    });
+    
+    document.getElementById('volSlider').addEventListener('input', (e) => {
+      minVol = parseInt(e.target.value);
+      document.getElementById('volVal').textContent = formatVolume(minVol);
+      renderGrid();
+    });
+    
+    document.getElementById('sortSelect').addEventListener('change', (e) => { currentSort = e.target.value; renderGrid(); });
+    document.getElementById('forceRefresh').addEventListener('click', () => performScan(false));
+    
+    document.addEventListener('click', (e) => {
+      const card = e.target.closest('[data-ticker]');
+      if (card) {
+        openStockModal(card.dataset.ticker, card.dataset.name || card.dataset.ticker + ' Inc');
+      }
+    });
+    
+    updateMarketStatus(); setInterval(updateMarketStatus, 60000);
+    performScan(false); startCountdown();
+  </script>
+</body>
+</html>
