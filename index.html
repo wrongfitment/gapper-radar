@@ -568,60 +568,54 @@
         `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(url)}`
       ];
       
-      // Try each proxy sequentially. This prevents opening 300 connections at once.
-      for (const proxy of proxies) {
-        try {
-          const res = await fetch(proxy);
-          if (res.ok) {
-            const data = await res.json();
-            if (data && data.chart && data.chart.result && data.chart.result[0]) {
-              const result = data.chart.result[0];
-              const meta = result.meta;
-              const quote = result.indicators.quote[0];
-              
-              const currentPrice = meta.regularMarketPrice;
-              const prevClose = meta.chartPreviousClose || meta.previousClose;
-              if (!currentPrice || !prevClose) continue; // Try next proxy
-              
-              const closes = quote.close || [];
-              const highs = (quote.high || []).filter(v => v !== null);
-              const lows = (quote.low || []).filter(v => v !== null);
-              const vols = (quote.volume || []).filter(v => v !== null);
-              const opens = (quote.open || []).filter(v => v !== null);
-              
-              const openPrice = opens.length > 0 ? opens[0] : currentPrice;
-              const high = highs.length > 0 ? Math.max(...highs) : currentPrice;
-              const low = lows.length > 0 ? Math.min(...lows) : currentPrice;
-              const volume = vols.length > 0 ? vols.reduce((a, b) => a + b, 0) : 0;
-              
-              let lastVal = currentPrice;
-              const sparkData = closes.map(v => {
-                if (v === null) return lastVal;
-                lastVal = v;
-                return v;
-              });
-              if (sparkData.length === 0) sparkData.push(currentPrice);
-              sparkData[sparkData.length - 1] = currentPrice;
-              
-              return {
-                ticker: meta.symbol,
-                name: meta.shortName || meta.longName || meta.symbol,
-                prevClose: prevClose,
-                openPrice: openPrice,
-                currentPrice: currentPrice,
-                high: high,
-                low: low,
-                volume: volume,
-                gapPercent: ((currentPrice - prevClose) / prevClose) * 100,
-                isUp: currentPrice >= prevClose,
-                sparkData: sparkData
-              };
-            }
-          }
-        } catch (e) {
-          // Ignore error, try next proxy
+      try {
+        // RACE THE PROXIES: Fire all 3 at once, use whichever replies first!
+        const data = await Promise.any(proxies.map(p => fetch(p).then(r => r.json())));
+        
+        if (data && data.chart && data.chart.result && data.chart.result[0]) {
+          const result = data.chart.result[0];
+          const meta = result.meta;
+          const quote = result.indicators.quote[0];
+          
+          const currentPrice = meta.regularMarketPrice;
+          const prevClose = meta.chartPreviousClose || meta.previousClose;
+          if (!currentPrice || !prevClose) return null;
+          
+          const closes = quote.close || [];
+          const highs = (quote.high || []).filter(v => v !== null);
+          const lows = (quote.low || []).filter(v => v !== null);
+          const vols = (quote.volume || []).filter(v => v !== null);
+          const opens = (quote.open || []).filter(v => v !== null);
+          
+          const openPrice = opens.length > 0 ? opens[0] : currentPrice;
+          const high = highs.length > 0 ? Math.max(...highs) : currentPrice;
+          const low = lows.length > 0 ? Math.min(...lows) : currentPrice;
+          const volume = vols.length > 0 ? vols.reduce((a, b) => a + b, 0) : 0;
+          
+          let lastVal = currentPrice;
+          const sparkData = closes.map(v => {
+            if (v === null) return lastVal;
+            lastVal = v;
+            return v;
+          });
+          if (sparkData.length === 0) sparkData.push(currentPrice);
+          sparkData[sparkData.length - 1] = currentPrice;
+          
+          return {
+            ticker: meta.symbol,
+            name: meta.shortName || meta.longName || meta.symbol,
+            prevClose: prevClose,
+            openPrice: openPrice,
+            currentPrice: currentPrice,
+            high: high,
+            low: low,
+            volume: volume,
+            gapPercent: ((currentPrice - prevClose) / prevClose) * 100,
+            isUp: currentPrice >= prevClose,
+            sparkData: sparkData
+          };
         }
-      }
+      } catch (e) { return null; }
       return null;
     }
     
@@ -654,7 +648,7 @@
         const results = [];
         let completed = 0;
         const total = tickers.length;
-        const chunkSize = 10; // Fetch 10 at a time to avoid proxy limits
+        const chunkSize = 15; // Increased batch size to 15
         
         for (let i = 0; i < tickers.length; i += chunkSize) {
           const chunk = tickers.slice(i, i + chunkSize);
@@ -667,7 +661,7 @@
           const txt = document.getElementById('loadingText');
           if (txt) txt.textContent = `Scanning market... ${completed}/${total} tickers analyzed`;
           
-          await sleep(400); // Wait 0.4s between batches
+          await sleep(100); // Reduced wait time to 0.1s
         }
         
         let validGappers = results.filter(Boolean);
