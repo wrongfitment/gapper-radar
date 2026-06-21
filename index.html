@@ -55,6 +55,10 @@
   .toast.out { animation: toast-in 0.4s cubic-bezier(0.4,0,0.2,1) reverse; }
   .modal-overlay { background: rgba(0,0,0,0.8); backdrop-filter: blur(8px); }
   .modal-content { background: #0e1218; border: 1px solid rgba(255,255,255,0.1); }
+  
+  /* Loading bar styles */
+  .progress-bar-bg { background: rgba(255,255,255,0.05); }
+  .progress-bar-fill { background: var(--accent); transition: width 0.3s ease; }
 </style>
 </head>
 <body>
@@ -238,6 +242,27 @@
     let countdownInterval = null;
     let scanCounter = 0;
     let sparkIdCounter = 0;
+    
+    // Cache system to load instantly on page refresh
+    const CACHE_KEY = 'gapperRadarCache';
+    const CACHE_TIME = 30 * 60 * 1000; // 30 mins
+    
+    function getCachedData() {
+      try {
+        const cached = localStorage.getItem(CACHE_KEY);
+        if (cached) {
+          const data = JSON.parse(cached);
+          if (Date.now() - data.timestamp < CACHE_TIME) return data;
+        }
+      } catch (e) {}
+      return null;
+    }
+    
+    function saveCachedData(data) {
+      try {
+        localStorage.setItem(CACHE_KEY, JSON.stringify({ timestamp: Date.now(), data: data }));
+      } catch (e) {}
+    }
     
     function renderSparkline(data, isUp, width = 200, height = 40, gradientId) {
       if (!data || data.length < 2) {
@@ -499,103 +524,116 @@
     document.getElementById('tvModal').addEventListener('click', (e) => { if (e.target.id === 'tvModal') closeModal(); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
     
-    // Fetches real 5-minute intraday chart data from Yahoo Finance
+    // RACES 3 PROXIES AT THE SAME TIME AND TAKES THE FASTEST ONE
     async function fetchStockData(ticker) {
       const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=5m&range=1d`;
       const proxies = [
-        `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(url)}`,
-        `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
-        `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
+        fetch(`https://corsproxy.io/?url=${encodeURIComponent(url)}`).then(res => res.json()),
+        fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`).then(res => res.json()),
+        fetch(`https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(url)}`).then(res => res.json())
       ];
       
-      for (let proxy of proxies) {
-        try {
-          const res = await fetch(proxy);
-          if (res.ok) {
-            const data = await res.json();
-            if (data && data.chart && data.chart.result && data.chart.result[0]) {
-              const result = data.chart.result[0];
-              const meta = result.meta;
-              const quote = result.indicators.quote[0];
-              
-              const currentPrice = meta.regularMarketPrice;
-              const prevClose = meta.chartPreviousClose || meta.previousClose;
-              if (!currentPrice || !prevClose) continue;
-              
-              const closes = quote.close || [];
-              const highs = (quote.high || []).filter(v => v !== null);
-              const lows = (quote.low || []).filter(v => v !== null);
-              const vols = (quote.volume || []).filter(v => v !== null);
-              const opens = (quote.open || []).filter(v => v !== null);
-              
-              const openPrice = opens.length > 0 ? opens[0] : currentPrice;
-              const high = highs.length > 0 ? Math.max(...highs) : currentPrice;
-              const low = lows.length > 0 ? Math.min(...lows) : currentPrice;
-              const volume = vols.length > 0 ? vols.reduce((a, b) => a + b, 0) : 0;
-              
-              // Build real sparkline array
-              let lastVal = currentPrice;
-              const sparkData = closes.map(v => {
-                if (v === null) return lastVal;
-                lastVal = v;
-                return v;
-              });
-              if (sparkData.length === 0) sparkData.push(currentPrice);
-              sparkData[sparkData.length - 1] = currentPrice;
-              
-              return {
-                ticker: meta.symbol,
-                name: meta.shortName || meta.longName || meta.symbol,
-                prevClose: prevClose,
-                openPrice: openPrice,
-                currentPrice: currentPrice,
-                high: high,
-                low: low,
-                volume: volume,
-                gapPercent: ((currentPrice - prevClose) / prevClose) * 100,
-                isUp: currentPrice >= prevClose,
-                sparkData: sparkData,
-                sector: 'Equity',
-                news: currentPrice >= prevClose ? 'Gap up on market open' : 'Gap down on market open'
-              };
-            }
-          }
-        } catch (e) { /* try next proxy */ }
-      }
+      try {
+        const data = await Promise.any(proxies);
+        if (data && data.chart && data.chart.result && data.chart.result[0]) {
+          const result = data.chart.result[0];
+          const meta = result.meta;
+          const quote = result.indicators.quote[0];
+          
+          const currentPrice = meta.regularMarketPrice;
+          const prevClose = meta.chartPreviousClose || meta.previousClose;
+          if (!currentPrice || !prevClose) return null;
+          
+          const closes = quote.close || [];
+          const highs = (quote.high || []).filter(v => v !== null);
+          const lows = (quote.low || []).filter(v => v !== null);
+          const vols = (quote.volume || []).filter(v => v !== null);
+          const opens = (quote.open || []).filter(v => v !== null);
+          
+          const openPrice = opens.length > 0 ? opens[0] : currentPrice;
+          const high = highs.length > 0 ? Math.max(...highs) : currentPrice;
+          const low = lows.length > 0 ? Math.min(...lows) : currentPrice;
+          const volume = vols.length > 0 ? vols.reduce((a, b) => a + b, 0) : 0;
+          
+          let lastVal = currentPrice;
+          const sparkData = closes.map(v => {
+            if (v === null) return lastVal;
+            lastVal = v;
+            return v;
+          });
+          if (sparkData.length === 0) sparkData.push(currentPrice);
+          sparkData[sparkData.length - 1] = currentPrice;
+          
+          return {
+            ticker: meta.symbol,
+            name: meta.shortName || meta.longName || meta.symbol,
+            prevClose: prevClose,
+            openPrice: openPrice,
+            currentPrice: currentPrice,
+            high: high,
+            low: low,
+            volume: volume,
+            gapPercent: ((currentPrice - prevClose) / prevClose) * 100,
+            isUp: currentPrice >= prevClose,
+            sparkData: sparkData,
+            sector: 'Equity',
+            news: currentPrice >= prevClose ? 'Gap up on market open' : 'Gap down on market open'
+          };
+        }
+      } catch (e) { return null; }
       return null;
     }
     
     async function performScan(isAuto = false) {
       scanCounter++;
-      const loadingEl = document.getElementById('stockGrid');
-      loadingEl.innerHTML = `<div class="col-span-full text-center py-10 text-[#7a8290] mono uppercase tracking-wider" id="loadingText">Initializing scan...</div>`;
-      document.getElementById('featuredContainer').innerHTML = '';
+      
+      // 1. INSTANT LOAD: Check cache first so UI doesn't flash
+      const cached = getCachedData();
+      if (cached && !isAuto) {
+        allGappers = cached.data;
+        updateStats(); renderTickerTape(); renderGrid();
+        const cachedTime = new Date(cached.timestamp);
+        document.getElementById('lastUpdate').textContent = cachedTime.toLocaleTimeString('en-US', { hour12: false });
+        countdownSeconds = Math.max(0, Math.floor((cached.timestamp + CACHE_TIME - Date.now()) / 1000));
+        updateCountdownDisplay();
+        showToast('Loaded from cache. Fetching fresh data in background...', 'info');
+      } else {
+        const loadingEl = document.getElementById('stockGrid');
+        loadingEl.innerHTML = `
+          <div class="col-span-full text-center py-10 text-[#7a8290] mono uppercase tracking-wider">
+            <div id="loadingText">Initializing simultaneous scan...</div>
+            <div class="w-full max-w-xs mx-auto mt-4 progress-bar-bg rounded-full h-1.5 overflow-hidden">
+              <div class="progress-bar-fill h-full" id="loadingBar" style="width: 0%"></div>
+            </div>
+          </div>`;
+        document.getElementById('featuredContainer').innerHTML = '';
+      }
       
       try {
-        // Curated list of 30 highly volatile stocks to scan
         const STOCKS = ['NVDA','TSLA','AMD','AAPL','MSFT','META','AMZN','GOOGL','PLTR','NFLX','GME','AMC','SOFI','COIN','MRNA','BNTX','JPM','GS','XOM','OXY','WMT','RIVN','LCID','SPCE','PLUG','FCEL','MARA','RIOT','MSTR','SNAP'];
-        const chunkSize = 6;
-        let validGappers = [];
         
-        // Fetch in batches of 6 to avoid rate limits
-        for (let i = 0; i < STOCKS.length; i += chunkSize) {
-          const chunkNum = Math.floor(i / chunkSize) + 1;
-          const totalChunks = Math.ceil(STOCKS.length / chunkSize);
-          const loadingText = document.getElementById('loadingText');
-          if (loadingText) loadingText.textContent = `Fetching batch ${chunkNum} of ${totalChunks}...`;
-          
-          const chunk = STOCKS.slice(i, i + chunkSize);
-          const chunkResults = await Promise.all(chunk.map(fetchStockData));
-          validGappers.push(...chunkResults.filter(Boolean));
-        }
+        // 2. SIMULTANEOUS FETCH: Fire all 30 requests at once, updating the progress bar as they finish
+        const results = [];
+        let completed = 0;
+        const total = STOCKS.length;
+        
+        await Promise.all(STOCKS.map(async (ticker) => {
+          const data = await fetchStockData(ticker);
+          results.push(data);
+          completed++;
+          const bar = document.getElementById('loadingBar');
+          if (bar) bar.style.width = ((completed / total) * 100) + '%';
+          const txt = document.getElementById('loadingText');
+          if (txt) txt.textContent = `Scanning market... ${completed}/${total} tickers analyzed`;
+        }));
+        
+        let validGappers = results.filter(Boolean);
         
         // Filter for significant gaps > 0.5%
         validGappers = validGappers.filter(q => Math.abs(q.gapPercent) > 0.5);
         validGappers.sort((a, b) => Math.abs(b.gapPercent) - Math.abs(a.gapPercent));
         
-        if (validGappers.length === 0) {
-          throw new Error('No significant gaps found in the current universe.');
-        }
+        if (validGappers.length === 0) throw new Error('No significant gaps found in the current universe.');
         
         allGappers = validGappers.slice(0, 18).map(stock => {
           return { ...stock, id: `${stock.ticker}-${scanCounter}-${Math.random()}` };
@@ -604,13 +642,19 @@
         updateStats(); renderTickerTape(); renderGrid();
         const now = new Date();
         document.getElementById('lastUpdate').textContent = now.toLocaleTimeString('en-US', { hour12: false });
+        
+        // Save to cache
+        saveCachedData(allGappers);
+        
         countdownSeconds = 30 * 60;
         updateCountdownDisplay();
         showToast(`${isAuto ? 'Auto' : 'Manual'} scan complete · ${allGappers.length} live gappers found`, 'success');
       } catch (error) {
         console.error("Fetch error:", error);
         showToast(error.message, 'error');
-        document.getElementById('stockGrid').innerHTML = `<div class="col-span-full text-center py-10 text-[#ff3d6e] mono uppercase tracking-wider px-4">Error: ${error.message}</div>`;
+        if (!cached) {
+          document.getElementById('stockGrid').innerHTML = `<div class="col-span-full text-center py-10 text-[#ff3d6e] mono uppercase tracking-wider px-4">Error: ${error.message}</div>`;
+        }
       }
     }
     
