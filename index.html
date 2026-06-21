@@ -22,31 +22,28 @@
   body.session-pre { box-shadow: inset 0 0 120px rgba(255,181,71,0.05); }
   body.session-after { box-shadow: inset 0 0 120px rgba(0,150,255,0.05); }
   .ambient { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
-  .ambient::before, .ambient::after { content: ''; position: absolute; border-radius: 50%; filter: blur(100px); opacity: 0.3; }
+  .ambient::before, .ambient::after { content: ''; position: absolute; border-radius: 50%; filter: blur(100px); opacity: 0.4; }
   .ambient::before { top: -10%; left: -5%; width: 50%; height: 60%; background: radial-gradient(circle, rgba(0,255,156,0.15), transparent 70%); animation: drift1 25s ease-in-out infinite; }
   .ambient::after { bottom: -10%; right: -5%; width: 50%; height: 60%; background: radial-gradient(circle, rgba(255,61,110,0.12), transparent 70%); animation: drift2 30s ease-in-out infinite; }
   @keyframes drift1 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(80px,60px) scale(1.1); } }
   @keyframes drift2 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-80px,-60px) scale(1.15); } }
+  .grid-overlay { background-image: linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px); background-size: 48px 48px; }
   @keyframes pulse-ring { 0% { box-shadow: 0 0 0 0 currentColor; opacity: 1; } 100% { box-shadow: 0 0 0 8px transparent; opacity: 0.3; } }
   .pulse-dot { position: relative; animation: pulse-ring 1.8s ease-out infinite; }
-  
-  /* Table Specific Styles */
-  .data-table { border-collapse: collapse; width: 100%; }
-  .data-table th { text-align: left; padding: 12px 16px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); border-bottom: 1px solid var(--border); background: #0a0d12; }
-  .data-table td { padding: 14px 16px; border-bottom: 1px solid var(--border); font-size: 14px; vertical-align: middle; }
-  .data-table tr:hover td { background: var(--bg-elevated); cursor: pointer; }
-  
-  /* Card Specific Styles */
-  .stock-card { transition: transform 0.2s, border-color 0.2s, background 0.2s; position: relative; overflow: hidden; }
-  .stock-card:hover { transform: translateY(-2px); border-color: var(--border-strong); background: var(--bg-elevated); }
-  
+  .stock-card { transition: transform 0.25s, border-color 0.25s, background 0.25s; position: relative; overflow: hidden; }
+  .stock-card::after { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, transparent 40%, rgba(255,255,255,0.02) 100%); pointer-events: none; }
+  .stock-card:hover { transform: translateY(-3px); border-color: var(--border-strong); background: var(--bg-elevated); }
+  .card-extra { max-height: 0; overflow: hidden; transition: max-height 0.3s ease, opacity 0.3s ease, margin 0.3s ease, padding 0.3s ease; opacity: 0; margin-top: 0; padding-top: 0; border-top: 1px solid transparent; }
+  .stock-card:hover .card-extra { max-height: 80px; opacity: 1; margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.05); }
   .countdown-ring circle.progress { transform: rotate(-90deg); transform-origin: center; transition: stroke-dashoffset 1s linear; }
   @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
   .marquee-track { animation: marquee 80s linear infinite; width: max-content; }
   .marquee-track:hover { animation-play-state: paused; }
-  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  @keyframes card-enter { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+  .card-enter { animation: card-enter 0.5s ease-out backwards; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
   ::-webkit-scrollbar-track { background: var(--bg); }
-  ::-webkit-scrollbar-thumb { background: #1f2630; border-radius: 4px; }
+  ::-webkit-scrollbar-thumb { background: #1f2630; border-radius: 5px; }
   ::selection { background: var(--accent); color: var(--bg); }
   .filter-btn { transition: all 0.2s; }
   .filter-btn.active { background: var(--text); color: var(--bg); }
@@ -68,178 +65,161 @@
 <body class="session-open">
   <div class="ambient"></div>
   
-  <!-- Ticker Tape -->
   <div class="relative z-10 border-b border-white/5 bg-black/50 backdrop-blur-sm overflow-hidden">
     <div class="marquee-track flex whitespace-nowrap py-2.5" id="tickerTape"></div>
   </div>
   
-  <!-- Sticky Top Navigation -->
-  <header class="sticky top-0 z-50 bg-[#07090d]/95 border-b border-white/5 backdrop-blur-md">
-    <div class="max-w-[1600px] mx-auto px-4 md:px-6 py-3 flex items-center justify-between flex-wrap gap-4">
-      <div class="flex items-center gap-4">
-        <div class="relative">
-          <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-[#00ff9c] via-[#00d8ff] to-[#ffb547] flex items-center justify-center shadow-lg shadow-[#00ff9c]/20">
-            <svg class="w-6 h-6 text-black" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/>
-            </svg>
-          </div>
-          <div class="absolute -top-0.5 -right-0.5 w-3 h-3 bg-[#00ff9c] rounded-full pulse-dot text-[#00ff9c]"></div>
-        </div>
-        <div>
-          <h1 class="text-xl md:text-2xl font-black tracking-tight leading-none">GAPPER RADAR</h1>
-          <p class="text-[9px] md:text-[10px] text-[#7a8290] mono uppercase tracking-[0.2em] mt-0.5">Pro Premarket Scanner</p>
-        </div>
-      </div>
-      
-      <div class="flex items-center gap-3 md:gap-6 flex-wrap">
-        <button id="openCmdK" class="hidden md:flex items-center gap-2 bg-[#0e1218] border border-white/5 rounded-lg px-3 py-2 text-xs text-[#7a8290] mono hover:border-white/20 transition-all">
-          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><path d="M21 21l-4.35-4.35"></path></svg>
-          Quick Search
-          <span class="bg-white/10 px-1.5 py-0.5 rounded text-[10px]">⌘K</span>
-        </button>
-
-        <div class="text-right hidden sm:block">
-          <div class="text-[9px] text-[#7a8290] mono uppercase tracking-wider">Market</div>
-          <div class="flex items-center gap-2 justify-end mt-0.5" id="marketStatus">
-            <span class="w-2 h-2 bg-[#00ff9c] rounded-full pulse-dot text-[#00ff9c]"></span>
-            <span class="text-sm font-bold">OPEN</span>
-          </div>
-        </div>
-        
-        <div class="flex items-center gap-3 px-3 py-2 rounded-xl bg-[#0e1218] border border-white/5">
-          <div class="relative w-10 h-10">
-            <svg class="countdown-ring w-10 h-10" viewBox="0 0 56 56">
-              <circle cx="28" cy="28" r="24" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="3"/>
-              <circle class="progress" id="countdownCircle" cx="28" cy="28" r="24" fill="none" stroke="#ffb547" stroke-width="3" stroke-dasharray="150.8" stroke-dashoffset="0" stroke-linecap="round"/>
-            </svg>
-            <div class="absolute inset-0 flex items-center justify-center">
-              <span class="mono text-[10px] font-black" id="countdownNum">30</span>
+  <header class="relative z-10 border-b border-white/5 grid-overlay">
+    <div class="max-w-[1600px] mx-auto px-4 md:px-6 py-5">
+      <div class="flex items-center justify-between flex-wrap gap-4">
+        <div class="flex items-center gap-4">
+          <div class="relative">
+            <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-[#00ff9c] via-[#00d8ff] to-[#ffb547] flex items-center justify-center shadow-lg shadow-[#00ff9c]/20">
+              <svg class="w-7 h-7 text-black" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/>
+              </svg>
             </div>
+            <div class="absolute -top-0.5 -right-0.5 w-3 h-3 bg-[#00ff9c] rounded-full pulse-dot text-[#00ff9c]"></div>
           </div>
           <div>
-            <div class="text-[9px] text-[#7a8290] mono uppercase tracking-wider">Next Scan</div>
-            <div class="text-xs font-bold mono" id="countdownTime">30:00</div>
+            <h1 class="text-2xl md:text-3xl font-black tracking-tight leading-none">GAPPER RADAR</h1>
+            <p class="text-[10px] md:text-xs text-[#7a8290] mono uppercase tracking-[0.2em] mt-1">Pro Premarket Scanner</p>
           </div>
         </div>
         
-        <button id="forceRefresh" class="px-4 py-2 rounded-xl bg-[#ffb547] text-black font-bold text-xs hover:brightness-110 active:scale-95 transition-all flex items-center gap-2">
-          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 12a9 9 0 11-3-6.7L21 8"/><path d="M21 3v5h-5"/>
-          </svg>
-          Force Scan
-        </button>
+        <div class="flex items-center gap-3 md:gap-6 flex-wrap">
+          <button id="openCmdK" class="hidden md:flex items-center gap-2 bg-[#0e1218] border border-white/5 rounded-lg px-3 py-2 text-xs text-[#7a8290] mono hover:border-white/20 transition-all">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><path d="M21 21l-4.35-4.35"></path></svg>
+            Quick Search
+            <span class="bg-white/10 px-1.5 py-0.5 rounded text-[10px]">⌘K</span>
+          </button>
+
+          <div class="text-right hidden sm:block">
+            <div class="text-[10px] text-[#7a8290] mono uppercase tracking-wider">Market</div>
+            <div class="flex items-center gap-2 justify-end mt-0.5" id="marketStatus">
+              <span class="w-2 h-2 bg-[#00ff9c] rounded-full pulse-dot text-[#00ff9c]"></span>
+              <span class="text-sm font-bold">OPEN</span>
+            </div>
+          </div>
+          
+          <div class="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-[#0e1218] border border-white/5">
+            <div class="relative w-12 h-12">
+              <svg class="countdown-ring w-12 h-12" viewBox="0 0 56 56">
+                <circle cx="28" cy="28" r="24" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="3"/>
+                <circle class="progress" id="countdownCircle" cx="28" cy="28" r="24" fill="none" stroke="#ffb547" stroke-width="3" stroke-dasharray="150.8" stroke-dashoffset="0" stroke-linecap="round"/>
+              </svg>
+              <div class="absolute inset-0 flex items-center justify-center">
+                <span class="mono text-xs font-black" id="countdownNum">30</span>
+              </div>
+            </div>
+            <div>
+              <div class="text-[10px] text-[#7a8290] mono uppercase tracking-wider">Next Scan</div>
+              <div class="text-sm font-bold mono" id="countdownTime">30:00</div>
+            </div>
+          </div>
+          
+          <button id="forceRefresh" class="px-5 py-3 rounded-xl bg-[#ffb547] text-black font-bold text-sm hover:brightness-110 active:scale-95 transition-all flex items-center gap-2">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 12a9 9 0 11-3-6.7L21 8"/><path d="M21 3v5h-5"/>
+            </svg>
+            Force Scan
+          </button>
+        </div>
       </div>
     </div>
   </header>
 
-  <!-- Hero / Stats (Scrolls away) -->
-  <section class="relative z-10 border-b border-white/5">
-    <div class="max-w-[1600px] mx-auto px-4 md:px-6 py-8 text-center">
-      <h2 class="text-xl md:text-3xl font-black tracking-tight mb-2">Find Today's Biggest Premarket Gappers in Seconds</h2>
-      <p class="text-xs md:text-sm text-[#7a8290] max-w-3xl mx-auto mb-6">
-        Scan 195+ US stocks and instantly see the biggest movers before the opening bell.
+  <section class="relative z-10 border-b border-white/5 grid-overlay">
+    <div class="max-w-[1600px] mx-auto px-4 md:px-6 py-12 md:py-20 text-center">
+      <h2 class="text-3xl md:text-5xl font-black tracking-tight mb-4">Find Today's Biggest Premarket Gappers in Seconds</h2>
+      <p class="text-base md:text-lg text-[#7a8290] max-w-3xl mx-auto mb-8">
+        Scan hundreds of US stocks and instantly see the biggest movers before the opening bell.
       </p>
       
-      <div id="staleDataWarning" class="hidden mb-4 max-w-2xl mx-auto bg-[#ff3d6e]/10 border border-[#ff3d6e]/30 text-[#ff3d6e] rounded-lg px-4 py-2 text-xs mono uppercase tracking-wider font-bold">
+      <button id="heroScanBtn" class="px-8 py-4 rounded-xl bg-[#00ff9c] text-black font-black text-lg hover:brightness-110 active:scale-95 transition-all mb-10 shadow-lg shadow-[#00ff9c]/20">
+        Scan Stocks Free
+      </button>
+      
+      <div id="staleDataWarning" class="hidden mb-6 max-w-2xl mx-auto bg-[#ff3d6e]/10 border border-[#ff3d6e]/30 text-[#ff3d6e] rounded-lg px-4 py-2 text-xs mono uppercase tracking-wider font-bold">
         ⚠️ Market Closed — Displaying Last Available Market Data (Cached)
       </div>
       
-      <div class="grid grid-cols-3 max-w-2xl mx-auto gap-4 mb-4">
-        <div class="bg-[#0e1218] border border-white/5 rounded-xl p-3">
-          <div class="text-2xl font-black mono text-[#00d8ff]" id="statTotal">—</div>
-          <div class="text-[9px] text-[#7a8290] mono uppercase tracking-wider mt-1">Stocks Scanned</div>
+      <div class="grid grid-cols-3 max-w-2xl mx-auto gap-4 mb-6">
+        <div class="bg-[#0e1218] border border-white/5 rounded-xl p-4">
+          <div class="text-3xl font-black mono text-[#00d8ff]" id="statTotal">—</div>
+          <div class="text-[10px] text-[#7a8290] mono uppercase tracking-wider mt-1">Stocks Scanned</div>
         </div>
-        <div class="bg-[#0e1218] border border-white/5 rounded-xl p-3">
-          <div class="text-2xl font-black mono text-[#00ff9c]" id="statUps">—</div>
-          <div class="text-[9px] text-[#7a8290] mono uppercase tracking-wider mt-1">Gainers</div>
+        <div class="bg-[#0e1218] border border-white/5 rounded-xl p-4">
+          <div class="text-3xl font-black mono text-[#00ff9c]" id="statUps">—</div>
+          <div class="text-[10px] text-[#7a8290] mono uppercase tracking-wider mt-1">Gainers</div>
         </div>
-        <div class="bg-[#0e1218] border border-white/5 rounded-xl p-3">
-          <div class="text-2xl font-black mono text-[#ff3d6e]" id="statDowns">—</div>
-          <div class="text-[9px] text-[#7a8290] mono uppercase tracking-wider mt-1">Losers</div>
+        <div class="bg-[#0e1218] border border-white/5 rounded-xl p-4">
+          <div class="text-3xl font-black mono text-[#ff3d6e]" id="statDowns">—</div>
+          <div class="text-[10px] text-[#7a8290] mono uppercase tracking-wider mt-1">Losers</div>
         </div>
+      </div>
+      
+      <div class="flex items-center justify-center gap-6 flex-wrap text-xs mono uppercase tracking-wider text-[#4b5563]">
+        <span class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-[#00ff9c]"></span> Tracking 195+ US Stocks</span>
+        <span class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-[#ffb547]"></span> Updated Every 30 Mins</span>
+        <span class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-[#00d8ff]"></span> Data: Alpaca Markets</span>
       </div>
     </div>
   </section>
   
-  <!-- Sticky Filter Bar -->
-  <section id="scannerSection" class="sticky top-[65px] z-40 bg-[#07090d]/95 border-b border-white/5 backdrop-blur-md">
-    <div class="max-w-[1600px] mx-auto px-4 md:px-6 py-3">
-      <div class="flex items-center justify-between flex-wrap gap-3">
-        <input id="searchInput" type="text" placeholder="Filter grid..." class="search-input bg-[#0e1218] border border-white/5 rounded-lg px-4 py-2 text-xs w-full sm:w-40 mono focus:outline-none">
+  <section id="scannerSection" class="relative z-10 border-b border-white/5 bg-black/20">
+    <div class="max-w-[1600px] mx-auto px-4 md:px-6 py-4">
+      <div class="flex items-center justify-between flex-wrap gap-4 mb-4">
+        <input id="searchInput" type="text" placeholder="Filter grid..." class="search-input bg-[#0e1218] border border-white/5 rounded-lg px-4 py-2 text-sm w-full sm:w-48 mono focus:outline-none">
         
-        <div class="flex items-center gap-2 flex-wrap" id="filterButtons">
-          <button data-filter="all" class="filter-btn active px-3 py-2 rounded-lg text-xs font-bold">All</button>
-          <button data-filter="up" class="filter-btn px-3 py-2 rounded-lg bg-[#0e1218] border border-white/5 text-xs font-bold">Gap Ups</button>
-          <button data-filter="down" class="filter-btn px-3 py-2 rounded-lg bg-[#0e1218] border border-white/5 text-xs font-bold">Gap Downs</button>
-        </div>
-        
-        <div class="hidden md:flex items-center gap-4 flex-wrap">
+        <div class="flex items-center gap-4 flex-wrap">
           <div class="flex items-center gap-2">
-            <span class="text-[9px] text-[#7a8290] mono uppercase">Min Gap:</span>
-            <input type="range" id="gapSlider" min="0" max="15" step="0.5" value="1.0" class="w-20">
+            <span class="text-[10px] text-[#7a8290] mono uppercase">Min Gap:</span>
+            <input type="range" id="gapSlider" min="0" max="15" step="0.5" value="1.0" class="w-24">
             <span class="text-xs text-[#ffb547] mono w-8" id="gapVal">1.0%</span>
           </div>
           <div class="flex items-center gap-2">
-            <span class="text-[9px] text-[#7a8290] mono uppercase">Min Vol:</span>
-            <input type="range" id="volSlider" min="0" max="5000000" step="100000" value="50000" class="w-20">
+            <span class="text-[10px] text-[#7a8290] mono uppercase">Min Vol:</span>
+            <input type="range" id="volSlider" min="0" max="5000000" step="100000" value="50000" class="w-24">
             <span class="text-xs text-[#ffb547] mono w-10" id="volVal">50K</span>
           </div>
         </div>
-
-        <div class="flex items-center gap-2">
-          <select id="sortSelect" class="px-3 py-2 rounded-lg bg-[#0e1218] border border-white/5 text-xs font-bold mono cursor-pointer hover:border-white/20 focus:outline-none">
+        
+        <div class="flex items-center gap-2 flex-wrap" id="filterButtons">
+          <button data-filter="all" class="filter-btn active px-4 py-2 rounded-lg text-sm font-bold">All</button>
+          <button data-filter="up" class="filter-btn px-4 py-2 rounded-lg bg-[#0e1218] border border-white/5 text-sm font-bold">Gap Ups</button>
+          <button data-filter="down" class="filter-btn px-4 py-2 rounded-lg bg-[#0e1218] border border-white/5 text-sm font-bold">Gap Downs</button>
+        </div>
+        
+        <div class="flex items-center gap-3 flex-wrap">
+          <span class="text-[10px] text-[#7a8290] mono uppercase tracking-wider">Sort</span>
+          <select id="sortSelect" class="px-3 py-2 rounded-lg bg-[#0e1218] border border-white/5 text-sm font-bold mono cursor-pointer hover:border-white/20">
             <option value="score-desc">Gap Score ↓</option>
             <option value="gap-desc">Gap % ↓</option>
             <option value="volume-desc">Volume ↓</option>
           </select>
-          
-          <!-- View Toggle -->
-          <div class="flex bg-[#0e1218] border border-white/5 rounded-lg overflow-hidden">
-            <button id="tableViewBtn" class="px-3 py-2 text-xs font-bold bg-[#ffb547] text-black">Table</button>
-            <button id="cardViewBtn" class="px-3 py-2 text-xs font-bold text-[#7a8290] hover:text-white">Cards</button>
-          </div>
         </div>
       </div>
-      <div class="flex items-center gap-2 flex-wrap mt-3" id="sectorPills"></div>
+      <div class="flex items-center gap-2 flex-wrap" id="sectorPills"></div>
     </div>
   </section>
   
-  <!-- Main Content Area -->
   <section class="relative z-10">
     <div class="max-w-[1600px] mx-auto px-4 md:px-6 py-6">
-      
-      <!-- Table View Container -->
-      <div id="tableViewContainer" class="bg-[#0e1218] rounded-xl border border-white/5 overflow-hidden">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Ticker</th>
-              <th class="hidden md:table-cell">Company</th>
-              <th class="text-right">Price</th>
-              <th class="text-right">Gap %</th>
-              <th class="text-right hidden sm:table-cell">Volume</th>
-              <th class="hidden lg:table-cell">Catalyst</th>
-              <th class="hidden lg:table-cell">Trend</th>
-              <th class="text-right">Action</th>
-            </tr>
-          </thead>
-          <tbody id="stockTableBody">
-            <!-- Table rows injected here -->
-          </tbody>
-        </table>
-      </div>
-      
-      <!-- Card View Container -->
-      <div id="cardViewContainer" class="hidden">
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6" id="featuredContainer"></div>
-        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3" id="stockGrid"></div>
-      </div>
-      
-      <div class="text-center text-[10px] text-[#7a8290] mono uppercase tracking-wider mt-6" id="resultCount">0 results</div>
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4" id="featuredContainer"></div>
     </div>
   </section>
   
-  <!-- SEO & Company Footer -->
+  <section class="relative z-10">
+    <div class="max-w-[1600px] mx-auto px-4 md:px-6 pb-12">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-[10px] text-[#7a8290] mono uppercase tracking-[0.2em]">All Gappers</h2>
+        <span class="text-[10px] text-[#7a8290] mono uppercase tracking-wider" id="resultCount">0 results</span>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3" id="stockGrid"></div>
+    </div>
+  </section>
+  
   <footer class="relative z-10 border-t border-white/5 py-12 bg-black/30">
     <div class="max-w-[1600px] mx-auto px-4 md:px-6 grid md:grid-cols-4 gap-8">
       <div class="md:col-span-1">
@@ -280,7 +260,7 @@
     </div>
     <div class="max-w-[1600px] mx-auto px-4 md:px-6 mt-8 pt-4 border-t border-white/5">
       <p class="text-[10px] text-[#4b5563] mono uppercase tracking-wider text-center">
-        Gapper Radar v5.0 · Not financial advice · Trading involves substantial risk of loss
+        Gapper Radar v5.1 · Not financial advice · Trading involves substantial risk of loss
       </p>
     </div>
   </footer>
@@ -337,7 +317,6 @@
     let minVol = 50000;
     let countdownSeconds = 30 * 60;
     let countdownInterval = null;
-    let viewMode = 'table'; // 'table' or 'card'
     
     function generateOHLCSparkline(open, high, low, current) {
       const points = 32;
@@ -369,7 +348,7 @@
       return data;
     }
     
-    function renderSparkline(data, isUp, width = 100, height = 30, gradientId) {
+    function renderSparkline(data, isUp, width = 200, height = 40, gradientId) {
       if (!data || data.length < 2) return '';
       const min = Math.min(...data);
       const max = Math.max(...data);
@@ -396,64 +375,6 @@
       `;
     }
     
-    // --- TABLE VIEW RENDERING ---
-    function renderTableView(stocks) {
-      const tbody = document.getElementById('stockTableBody');
-      if (stocks.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="8" class="text-center py-10 text-[#7a8290] mono uppercase tracking-wider">No gappers found matching criteria.</td></tr>`;
-        return;
-      }
-      
-      tbody.innerHTML = stocks.map((stock, index) => {
-        const gapClass = stock.isUp ? 'text-[#00ff9c]' : 'text-[#ff3d6e]';
-        const gapSign = stock.isUp ? '+' : '';
-        const catalystHTML = stock.catalysts.map(c => `<span class="px-1.5 py-0.5 rounded text-[8px] mono font-bold uppercase tracking-wider bg-[#00d8ff]/10 text-[#00d8ff] border border-[#00d8ff]/30">${c}</span>`).join(' ');
-        
-        return `
-          <tr data-ticker="${stock.ticker}" data-name="${stock.name}">
-            <td class="mono font-bold text-base text-white">${stock.ticker}</td>
-            <td class="hidden md:table-cell text-[#7a8290] text-sm truncate max-w-[150px]">${stock.name}</td>
-            <td class="text-right mono font-medium">$${formatPrice(stock.currentPrice)}</td>
-            <td class="text-right mono font-bold ${gapClass}">${gapSign}${stock.gapPercent.toFixed(2)}%</td>
-            <td class="text-right mono text-[#7a8290] hidden sm:table-cell">${formatVolume(stock.volume)}</td>
-            <td class="hidden lg:table-cell"><div class="flex gap-1 flex-wrap">${catalystHTML}</div></td>
-            <td class="hidden lg:table-cell">
-              <div class="w-24 h-8">
-                ${renderSparkline(stock.sparkData, stock.isUp, 100, 30, `tbl-grad-${stock.id}-${index}`)}
-              </div>
-            </td>
-            <td class="text-right">
-              <button class="view-btn text-[10px] bg-white/5 hover:bg-[#ffb547] hover:text-black text-[#7a8290] px-2 py-1 rounded font-bold transition-colors">CHART</button>
-            </td>
-          </tr>
-        `;
-      }).join('');
-    }
-    
-    // --- CARD VIEW RENDERING ---
-    function renderCardView(stocks) {
-      const grid = document.getElementById('stockGrid');
-      const featured = document.getElementById('featuredContainer');
-      
-      if (stocks.length === 0) {
-        grid.innerHTML = `<div class="col-span-full text-center py-10 text-[#7a8290] mono uppercase tracking-wider">No gappers found matching criteria.</div>`;
-        featured.innerHTML = '';
-        return;
-      }
-
-      const topUp = [...stocks].filter(g => g.isUp).sort((a, b) => b.gapPercent - a.gapPercent)[0];
-      const topDown = [...stocks].filter(g => !g.isUp).sort((a, b) => a.gapPercent - b.gapPercent)[0];
-      const featuredHTML = [];
-      if (topUp) featuredHTML.push(renderFeaturedCard(topUp, 'Top Gap Up', 1));
-      if (topDown) featuredHTML.push(renderFeaturedCard(topDown, 'Top Gap Down', 2));
-      featured.innerHTML = featuredHTML.join('');
-      
-      const featuredTickers = [topUp?.ticker, topDown?.ticker].filter(Boolean);
-      const gridStocks = stocks.filter(s => !featuredTickers.includes(s.ticker));
-      
-      grid.innerHTML = gridStocks.map((stock, index) => renderStockCard(stock, index)).join('');
-    }
-    
     function renderStockCard(stock, index) {
       const gapClass = stock.isUp ? 'text-[#00ff9c]' : 'text-[#ff3d6e]';
       const gapSign = stock.isUp ? '+' : '';
@@ -467,8 +388,8 @@
       `).join('');
       
       return `
-        <div class="stock-card rounded-xl bg-[#0e1218] border border-white/5 p-4 cursor-pointer" 
-             style="border-left: 2px solid ${borderTint};"
+        <div class="stock-card card-enter rounded-xl bg-[#0e1218] border border-white/5 p-4 cursor-pointer" 
+             style="animation-delay: ${index * 30}ms; border-left: 2px solid ${borderTint};"
              data-ticker="${stock.ticker}" data-name="${stock.name}">
           <div class="flex items-start justify-between mb-3 gap-2">
             <div class="min-w-0">
@@ -520,6 +441,17 @@
               <div class="score-bar-fill" style="width: ${stock.gapScore}%; background: ${scoreColor};"></div>
             </div>
           </div>
+          
+          <div class="card-extra text-xs grid grid-cols-2 gap-2">
+            <div>
+              <div class="text-[#7a8290] mono uppercase tracking-wider text-[9px]">Prev Close</div>
+              <div class="font-bold mono">$${formatPrice(stock.prevClose)}</div>
+            </div>
+            <div>
+              <div class="text-[#7a8290] mono uppercase tracking-wider text-[9px]">Day Range</div>
+              <div class="font-bold mono">$${formatPrice(stock.low)} - $${formatPrice(stock.high)}</div>
+            </div>
+          </div>
         </div>
       `;
     }
@@ -535,7 +467,7 @@
       const catalystText = stock.catalysts.join(' · ');
       
       return `
-        <div class="rounded-2xl bg-[#0e1218] border border-white/5 p-5 relative overflow-hidden cursor-pointer"
+        <div class="rounded-2xl bg-[#0e1218] border border-white/5 p-5 relative overflow-hidden card-enter cursor-pointer"
              style="background-image: ${bgGradient};"
              data-ticker="${stock.ticker}" data-name="${stock.name}">
           <div class="flex items-start justify-between mb-4 gap-3 flex-wrap">
@@ -615,12 +547,16 @@
         return dir === 'desc' ? bv - av : av - bv;
       });
       
-      if (viewMode === 'table') {
-        renderTableView(filtered);
-      } else {
-        renderCardView(filtered);
-      }
+      const topUp = [...filtered].filter(g => g.isUp).sort((a, b) => b.gapPercent - a.gapPercent)[0];
+      const topDown = [...filtered].filter(g => !g.isUp).sort((a, b) => a.gapPercent - b.gapPercent)[0];
+      const featuredHTML = [];
+      if (topUp) featuredHTML.push(renderFeaturedCard(topUp, 'Top Gap Up', 1));
+      if (topDown) featuredHTML.push(renderFeaturedCard(topDown, 'Top Gap Down', 2));
+      document.getElementById('featuredContainer').innerHTML = featuredHTML.join('');
       
+      const featuredTickers = [topUp?.ticker, topDown?.ticker].filter(Boolean);
+      const gridStocks = filtered.filter(s => !featuredTickers.includes(s.ticker));
+      document.getElementById('stockGrid').innerHTML = gridStocks.map((s, i) => renderStockCard(s, i)).join('');
       document.getElementById('resultCount').textContent = `${filtered.length} results`;
     }
     
@@ -767,32 +703,13 @@
     document.getElementById('openCmdK').addEventListener('click', openCmdK);
     document.getElementById('cmdkInput').addEventListener('input', (e) => renderCmdKResults(e.target.value));
     
-    // View Toggle Logic
-    document.getElementById('tableViewBtn').addEventListener('click', () => {
-      viewMode = 'table';
-      document.getElementById('tableViewContainer').classList.remove('hidden');
-      document.getElementById('cardViewContainer').classList.add('hidden');
-      document.getElementById('tableViewBtn').classList.add('bg-[#ffb547]', 'text-black');
-      document.getElementById('tableViewBtn').classList.remove('text-[#7a8290]');
-      document.getElementById('cardViewBtn').classList.remove('bg-[#ffb547]', 'text-black');
-      document.getElementById('cardViewBtn').classList.add('text-[#7a8290]');
-      renderGrid();
-    });
-    
-    document.getElementById('cardViewBtn').addEventListener('click', () => {
-      viewMode = 'card';
-      document.getElementById('tableViewContainer').classList.add('hidden');
-      document.getElementById('cardViewContainer').classList.remove('hidden');
-      document.getElementById('cardViewBtn').classList.add('bg-[#ffb547]', 'text-black');
-      document.getElementById('cardViewBtn').classList.remove('text-[#7a8290]');
-      document.getElementById('tableViewBtn').classList.remove('bg-[#ffb547]', 'text-black');
-      document.getElementById('tableViewBtn').classList.add('text-[#7a8290]');
-      renderGrid();
+    document.getElementById('heroScanBtn').addEventListener('click', () => {
+      document.getElementById('scannerSection').scrollIntoView({ behavior: 'smooth' });
     });
     
     async function performScan(isAuto = false) {
-      const loadingEl = viewMode === 'table' ? document.getElementById('stockTableBody') : document.getElementById('stockGrid');
-      loadingEl.innerHTML = `<div class="${viewMode === 'table' ? '' : 'col-span-full'} text-center py-10 text-[#7a8290] mono uppercase tracking-wider">Fetching secure data from backend...</div>`;
+      const loadingEl = document.getElementById('stockGrid');
+      loadingEl.innerHTML = `<div class="col-span-full text-center py-10 text-[#7a8290] mono uppercase tracking-wider">Fetching secure data from backend...</div>`;
       document.getElementById('featuredContainer').innerHTML = '';
       
       try {
@@ -802,7 +719,7 @@
         try {
           result = JSON.parse(rawText);
         } catch (e) {
-          throw new Error(`Backend returned an HTML error page instead of data.`);
+          throw new Error(`Backend returned an HTML error page instead of data. Did you add package.json?`);
         }
         
         if (!response.ok || !result.data) {
@@ -834,7 +751,7 @@
       } catch (error) {
         console.error("Fetch error:", error);
         showToast(error.message, 'error');
-        loadingEl.innerHTML = `<div class="${viewMode === 'table' ? '' : 'col-span-full'} text-center py-10 text-[#ff3d6e] mono uppercase tracking-wider px-4">Error: ${error.message}</div>`;
+        loadingEl.innerHTML = `<div class="col-span-full text-center py-10 text-[#ff3d6e] mono uppercase tracking-wider px-4">Error: ${error.message}</div>`;
       }
     }
     
@@ -904,11 +821,10 @@
     document.getElementById('sortSelect').addEventListener('change', (e) => { currentSort = e.target.value; renderGrid(); });
     document.getElementById('forceRefresh').addEventListener('click', () => performScan(false));
     
-    // Global click handler for table rows and cards
     document.addEventListener('click', (e) => {
-      const row = e.target.closest('[data-ticker]');
-      if (row && !e.target.closest('#cmdkModal')) {
-        openStockModal(row.dataset.ticker, row.dataset.name || row.dataset.ticker + ' Inc');
+      const card = e.target.closest('[data-ticker]');
+      if (card && !e.target.closest('#cmdkModal')) {
+        openStockModal(card.dataset.ticker, card.dataset.name || card.dataset.ticker + ' Inc');
       }
     });
     
