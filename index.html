@@ -117,8 +117,11 @@
           </div>
         </div>
         
-        <button id="heroScanBtn" class="px-5 py-2.5 rounded-xl bg-[#00ff9c] text-black font-bold text-sm hover:brightness-110 active:scale-95 transition-all flex items-center gap-2">
-          Start Scanning Free
+        <button id="forceRefresh" class="px-4 py-2 rounded-xl bg-[#ffb547] text-black font-bold text-xs hover:brightness-110 active:scale-95 transition-all flex items-center gap-2">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12a9 9 0 11-3-6.7L21 8"/><path d="M21 3v5h-5"/>
+          </svg>
+          Force Scan
         </button>
       </div>
     </div>
@@ -132,21 +135,15 @@
         Scan thousands of stocks in real time and instantly find the biggest premarket gainers, losers, unusual volume, and breakout candidates.
       </p>
       
-      <div class="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
-        <button id="heroScanBtn2" class="px-8 py-4 rounded-xl bg-[#00ff9c] text-black font-black text-lg hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-[#00ff9c]/20 w-full sm:w-auto">
-          Start Scanning Free
-        </button>
-        <button id="seeGappersBtn" class="px-8 py-4 rounded-xl bg-[#0e1218] border border-white/10 text-white font-bold text-lg hover:border-white/30 active:scale-95 transition-all w-full sm:w-auto">
-          See Today's Gappers
-        </button>
-      </div>
+      <button id="heroScanBtn" class="px-8 py-4 rounded-xl bg-[#00ff9c] text-black font-black text-lg hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-[#00ff9c]/20 mb-12">
+        Start Scanning Free
+      </button>
 
       <!-- Trust Badges -->
       <div class="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-8 text-sm text-[#7a8290] mono uppercase tracking-wider mb-12">
-        <div class="flex items-center gap-2"><span class="text-[#00ff9c]">✓</span> Tracking 195+ US Stocks</div>
-        <div class="flex items-center gap-2"><span class="text-[#00ff9c]">✓</span> Real-Time Data (Alpaca)</div>
+        <div class="flex items-center gap-2"><span class="text-[#00ff9c]">✓</span> Real-Time Alpaca Data</div>
         <div class="flex items-center gap-2"><span class="text-[#00ff9c]">✓</span> Free Forever</div>
-        <div class="flex items-center gap-2"><span class="text-[#00ff9c]">✓</span> No Brokerage Required</div>
+        <div class="flex items-center gap-2"><span class="text-[#00ff9c]">✓</span> No Account Required</div>
       </div>
 
       <div id="staleDataWarning" class="hidden mb-6 max-w-2xl mx-auto bg-[#ff3d6e]/10 border border-[#ff3d6e]/30 text-[#ff3d6e] rounded-lg px-4 py-2 text-xs mono uppercase tracking-wider font-bold">
@@ -260,73 +257,66 @@
     </div>
   </section>
 
-  <!-- FAQ SECTION -->
-  <section class="relative z-10 border-b border-white/5 py-16">
-    <div class="max-w-3xl mx-auto px-4 md:px-6">
-      <h2 class="text-2xl md:text-3xl font-black tracking-tight mb-8 text-center">Frequently Asked Questions</h2>
-      <div class="space-y-6">
-        <div class="bg-[#0e1218] rounded-xl p-6 border border-white/5">
-          <h4 class="font-bold text-lg mb-2">How often is data updated?</h4>
-          <p class="text-[#7a8290] text-sm">The scanner refreshes every 30 minutes via the Alpaca Markets API to ensure you get reliable, real-time snapshots without hitting rate limits.</p>
+  <!-- COMPACT FAQ SECTION -->
+  <section class="relative z-10 border-b border-white/5 py-12">
+    <div class="max-w-4xl mx-auto px-4 md:px-6">
+      <h2 class="text-xl md:text-2xl font-black tracking-tight mb-6 text-center">Frequently Asked Questions</h2>
+      <div class="grid md:grid-cols-2 gap-4 text-sm">
+        <div class="bg-[#0e1218] rounded-lg p-4 border border-white/5">
+          <h4 class="font-bold mb-1">How often is data updated?</h4>
+          <p class="text-[#7a8290] text-xs">Every 30 minutes via the Alpaca Markets API to ensure reliable snapshots without hitting rate limits.</p>
         </div>
-        <div class="bg-[#0e1218] rounded-xl p-6 border border-white/5">
-          <h4 class="font-bold text-lg mb-2">Do I need a brokerage account?</h4>
-          <p class="text-[#7a8290] text-sm">No. Gapper Radar is a standalone scanning tool. No brokerage connection or login is required to view the data.</p>
+        <div class="bg-[#0e1218] rounded-lg p-4 border border-white/5">
+          <h4 class="font-bold mb-1">Do I need a brokerage account?</h4>
+          <p class="text-[#7a8290] text-xs">No. Gapper Radar is a standalone scanning tool. No brokerage connection or login is required.</p>
         </div>
-        <div class="bg-[#0e1218] rounded-xl p-6 border border-white/5">
-          <h4 class="font-bold text-lg mb-2">Is Gapper Radar free?</h4>
-          <p class="text-[#7a8290] text-sm">Yes, the current version is free forever. We may introduce a premium tier later for SMS/Discord alerts and expanded universe screening.</p>
+        <div class="bg-[#0e1218] rounded-lg p-4 border border-white/5">
+          <h4 class="font-bold mb-1">Is Gapper Radar free?</h4>
+          <p class="text-[#7a8290] text-xs">Yes, the current version is free forever. Premium alerts may be introduced later.</p>
         </div>
-        <div class="bg-[#0e1218] rounded-xl p-6 border border-white/5">
-          <h4 class="font-bold text-lg mb-2">Which exchanges are covered?</h4>
-          <p class="text-[#7a8290] text-sm">We scan top equities across NASDAQ, NYSE, and AMEX.</p>
+        <div class="bg-[#0e1218] rounded-lg p-4 border border-white/5">
+          <h4 class="font-bold mb-1">Which exchanges are covered?</h4>
+          <p class="text-[#7a8290] text-xs">We scan top equities across NASDAQ, NYSE, and AMEX.</p>
         </div>
       </div>
     </div>
   </section>
 
   <!-- FOOTER -->
-  <footer class="relative z-10 border-t border-white/5 py-12 bg-black/30">
+  <footer class="relative z-10 border-t border-white/5 py-8 bg-black/30">
     <div class="max-w-[1600px] mx-auto px-4 md:px-6 grid md:grid-cols-4 gap-8">
       <div class="md:col-span-1">
-        <h4 class="text-sm font-black text-white mb-3 mono uppercase tracking-wider">Gapper Radar</h4>
-        <p class="text-xs text-[#7a8290] leading-relaxed mb-4">
-          The fastest way to find premarket gap ups, unusual volume, and momentum stocks. Built by traders, for traders.
+        <h4 class="text-sm font-black text-white mb-2 mono uppercase tracking-wider">Gapper Radar</h4>
+        <p class="text-xs text-[#7a8290] leading-relaxed mb-3">
+          The fastest way to find premarket gap ups, unusual volume, and momentum stocks.
         </p>
-        <button class="text-xs bg-[#ffb547] text-black font-bold px-3 py-1.5 rounded mono uppercase tracking-wider hover:brightness-110">Upgrade to PRO</button>
       </div>
       <div>
-        <h4 class="text-xs font-bold text-white mb-3 mono uppercase tracking-wider">Features</h4>
-        <ul class="space-y-2 text-xs text-[#7a8290]">
+        <h4 class="text-xs font-bold text-white mb-2 mono uppercase tracking-wider">Features</h4>
+        <ul class="space-y-1 text-xs text-[#7a8290]">
           <li class="hover:text-white cursor-pointer">Premarket Scanner</li>
           <li class="hover:text-white cursor-pointer">Top Gappers</li>
           <li class="hover:text-white cursor-pointer">High Volume Stocks</li>
-          <li class="hover:text-white cursor-pointer">Market Movers</li>
-          <li class="hover:text-white cursor-pointer">Relative Volume (RVOL)</li>
         </ul>
       </div>
       <div>
-        <h4 class="text-xs font-bold text-white mb-3 mono uppercase tracking-wider">Resources</h4>
-        <ul class="space-y-2 text-xs text-[#7a8290]">
+        <h4 class="text-xs font-bold text-white mb-2 mono uppercase tracking-wider">Resources</h4>
+        <ul class="space-y-1 text-xs text-[#7a8290]">
           <li class="hover:text-white cursor-pointer">What is a Gapper?</li>
           <li class="hover:text-white cursor-pointer">Trading Guides</li>
           <li class="hover:text-white cursor-pointer">Scanner Tutorial</li>
-          <li class="hover:text-white cursor-pointer">Gap Continuation Score</li>
-          <li class="hover:text-white cursor-pointer">API Documentation</li>
         </ul>
       </div>
       <div>
-        <h4 class="text-xs font-bold text-white mb-3 mono uppercase tracking-wider">Data & Trust</h4>
+        <h4 class="text-xs font-bold text-white mb-2 mono uppercase tracking-wider">Data & Trust</h4>
         <p class="text-xs text-[#7a8290] leading-relaxed">
           Real-time market data provided by Alpaca Markets API. 
-          <br><br>
-          The scanner universe is restricted to 195 highly liquid, high-beta stocks to ensure real-time reliability. Snapshots are cached for 30 minutes.
         </p>
       </div>
     </div>
-    <div class="max-w-[1600px] mx-auto px-4 md:px-6 mt-8 pt-4 border-t border-white/5">
+    <div class="max-w-[1600px] mx-auto px-4 md:px-6 mt-6 pt-4 border-t border-white/5">
       <p class="text-[10px] text-[#4b5563] mono uppercase tracking-wider text-center">
-        Gapper Radar v6.0 · Not financial advice · Trading involves substantial risk of loss
+        Gapper Radar v6.1 · Not financial advice · Trading involves substantial risk of loss
       </p>
     </div>
   </footer>
@@ -778,14 +768,8 @@
     document.getElementById('openCmdK').addEventListener('click', openCmdK);
     document.getElementById('cmdkInput').addEventListener('input', (e) => renderCmdKResults(e.target.value));
     
-    // Smooth scroll for hero buttons
+    // Smooth scroll for hero button
     document.getElementById('heroScanBtn').addEventListener('click', () => {
-      document.getElementById('scannerSection').scrollIntoView({ behavior: 'smooth' });
-    });
-    document.getElementById('heroScanBtn2').addEventListener('click', () => {
-      document.getElementById('scannerSection').scrollIntoView({ behavior: 'smooth' });
-    });
-    document.getElementById('seeGappersBtn').addEventListener('click', () => {
       document.getElementById('scannerSection').scrollIntoView({ behavior: 'smooth' });
     });
     
