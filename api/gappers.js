@@ -119,21 +119,29 @@ export default async function handler(req, res) {
       
       const gapPercent = ((currentPrice - prevClose) / prevClose) * 100;
       const stockInfo = STOCK_UNIVERSE.find(s => s.ticker === ticker);
+      const sector = stockInfo ? stockInfo.sector : 'Equity';
       
       if (Math.abs(gapPercent) > 1.0 && volume > 50000 && currentPrice > 1) {
         
-        // REFINED GAP SCORE ALGORITHM (Max 100)
-        let score = 25; // Base
-        score += Math.min(Math.abs(gapPercent) * 2, 40); // Gap size up to 40 pts
-        score += Math.min(volume / 100000, 20); // Volume up to 20 pts
-        if (currentPrice > openPrice && gapPercent > 0) score += 15; // Holding gains
-        else if (currentPrice < openPrice && gapPercent < 0) score += 15; // Holding losses
+        let score = 25; 
+        score += Math.min(Math.abs(gapPercent) * 2, 40); 
+        score += Math.min(volume / 100000, 20); 
+        if (currentPrice > openPrice && gapPercent > 0) score += 15; 
+        else if (currentPrice < openPrice && gapPercent < 0) score += 15; 
         score = Math.min(score, 100); 
+
+        // CATALYST LOGIC ENGINE
+        let catalyst = '📰 News Catalyst';
+        if (sector === 'Biotechnology' || sector === 'Healthcare') catalyst = '💊 Drug/FDA News';
+        else if (Math.abs(gapPercent) > 15) catalyst = '💸 Earnings Runner';
+        else if (volume > 2000000) catalyst = '⚡ Unusual Volume';
+        else if (sector === 'Technology' || sector === 'Software' || sector === 'Semiconductors') catalyst = '📈 Analyst Upgrade';
+        else if (sector === 'Financials' || sector === 'E-Commerce') catalyst = '📊 Merger/Acquisition';
         
         validGappers.push({
           ticker: ticker,
           name: ticker + ' Inc.',
-          sector: stockInfo ? stockInfo.sector : 'Equity',
+          sector: sector,
           prevClose: prevClose,
           openPrice: openPrice,
           currentPrice: currentPrice,
@@ -142,14 +150,13 @@ export default async function handler(req, res) {
           volume: volume,
           gapPercent: gapPercent,
           isUp: gapPercent > 0,
-          gapScore: Math.round(score)
+          gapScore: Math.round(score),
+          catalyst: catalyst
         });
       }
     }
 
     validGappers.sort((a, b) => b.gapScore - a.gapScore);
-    
-    // STRICTLY ENFORCE TOP 50
     const top50 = validGappers.slice(0, 50);
 
     if (top50.length === 0) throw new Error('No stocks met the scanner criteria.');
