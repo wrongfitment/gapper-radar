@@ -2,15 +2,15 @@
 
 export default async function handler(req, res) {
   try {
-    // Yahoo Finance endpoints for top 100 gainers and losers (requires no API key)
+    // Yahoo Finance endpoints for top 100 gainers and losers
     const yahooUrl = (type) => `https://query2.finance.yahoo.com/v1/finance/screener/predefined/saved?formatted=true&lang=en-US&region=US&scrIds=${type}&count=100&corsDomain=finance.yahoo.com`;
     
-    // We MUST use a browser User-Agent so Yahoo allows the request from the server
-    const headers = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36' };
+    // We route through a proxy to bypass Yahoo's server (Vercel) IP blocks
+    const proxy = (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
 
     const [gainersRes, losersRes] = await Promise.all([
-      fetch(yahooUrl('day_gainers'), { headers }),
-      fetch(yahooUrl('day_losers'), { headers })
+      fetch(proxy(yahooUrl('day_gainers'))),
+      fetch(proxy(yahooUrl('day_losers')))
     ]);
 
     if (!gainersRes.ok || !losersRes.ok) throw new Error('Yahoo Finance request failed');
