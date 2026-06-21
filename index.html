@@ -121,7 +121,7 @@
     </div>
   </header>
 
-  <!-- New Conversion-Optimized Hero -->
+  <!-- Conversion-Optimized Hero -->
   <section class="relative z-10 border-b border-white/5 grid-overlay">
     <div class="max-w-[1600px] mx-auto px-4 md:px-6 py-12 md:py-20 text-center">
       <h2 class="text-3xl md:text-5xl font-black tracking-tight mb-4">Find Today's Biggest Premarket Gappers in Seconds</h2>
@@ -134,7 +134,7 @@
       </button>
       
       <div id="staleDataWarning" class="hidden mb-6 max-w-2xl mx-auto bg-[#ff3d6e]/10 border border-[#ff3d6e]/30 text-[#ff3d6e] rounded-lg px-4 py-2 text-xs mono uppercase tracking-wider font-bold">
-        ⚠️ Market Closed — Displaying Stale Data from: <span id="staleTime">--</span>
+        ⚠️ Market Closed — Displaying Last Available Market Data (Cached)
       </div>
       
       <!-- Simplified 3-Stat FOMO Bar -->
@@ -650,22 +650,16 @@
         updateStats(); renderTickerTape(); renderSectorPills(); renderGrid();
         showToast(`${isAuto ? 'Auto' : 'Manual'} scan complete · ${allGappers.length} pro gappers found`, 'success');
         
-        if (result.lastUpdated) {
-          const d = new Date(result.lastUpdated);
-          const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
-          const timeStr = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
-          
-          const now = new Date();
-          const day = now.getDay();
-          const hours = now.getHours() + (now.getMinutes() / 60);
-          const isClosed = (day === 0 || day === 6 || hours < 4 || hours >= 20);
-          
-          if (isClosed) {
-            document.getElementById('staleTime').textContent = `${dayName} ${timeStr}`;
-            document.getElementById('staleDataWarning').classList.remove('hidden');
-          } else {
-            document.getElementById('staleDataWarning').classList.add('hidden');
-          }
+        // Check if market is closed to show stale data warning
+        const now = new Date();
+        const day = now.getDay();
+        const hours = now.getHours() + (now.getMinutes() / 60);
+        const isClosed = (day === 0 || day === 6 || hours < 4 || hours >= 20);
+        
+        if (isClosed) {
+          document.getElementById('staleDataWarning').classList.remove('hidden');
+        } else {
+          document.getElementById('staleDataWarning').classList.add('hidden');
         }
         
         if (result.nextScan) countdownSeconds = Math.max(0, Math.floor((result.nextScan - Date.now()) / 1000));
