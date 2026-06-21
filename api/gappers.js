@@ -120,7 +120,7 @@ module.exports = async (req, res) => {
       const sector = stockInfo ? stockInfo.sector : 'Equity';
       const absGap = Math.abs(gapPercent);
       
-      if (absGap > 1.0 && volume > 50000 && currentPrice > 1) {
+        if (absGap > 0.1 && volume > 10000 && currentPrice > 1) {
         
         let score = 20; 
         score += Math.min(absGap * 2.5, 30); 
