@@ -136,7 +136,7 @@
         Scan hundreds of US stocks and instantly see the biggest movers before the opening bell.
       </p>
       
-      <button id="heroScanBtn" class="px-8 py-4 rounded-xl bg-[#00ff9c] text-black font-black text-lg hover:brightness-110 active:scale-95 transition-all mb-10 shadow-lg shadow-[#00ff9c]/20">
+      <button id="heroScanBtn" class="px-8 py-4 rounded-xl bg-[#00ff9c] text-black font-black text-lg hover:brightness-110 active:scale-95 transition-all mb-8 shadow-lg shadow-[#00ff9c]/20">
         Scan Stocks Free
       </button>
       
@@ -144,25 +144,16 @@
         ⚠️ Market Closed — Displaying Last Available Market Data (Cached)
       </div>
       
-      <div class="grid grid-cols-3 max-w-2xl mx-auto gap-4 mb-6">
-        <div class="bg-[#0e1218] border border-white/5 rounded-xl p-4">
-          <div class="text-3xl font-black mono text-[#00d8ff]" id="statTotal">—</div>
-          <div class="text-[10px] text-[#7a8290] mono uppercase tracking-wider mt-1">Stocks Scanned</div>
+      <!-- Sleek, Inline Trust & Stats -->
+      <div class="flex flex-col items-center gap-4">
+        <div class="flex items-center justify-center gap-4 md:gap-6 flex-wrap text-xs mono uppercase tracking-wider text-[#4b5563]">
+          <span class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-[#00ff9c] pulse-dot text-[#00ff9c]"></span> Live Data: Alpaca Markets</span>
+          <span class="flex items-center gap-2">Updated Every 30 Mins</span>
+          <span class="flex items-center gap-2">Universe: 195 Tickers</span>
         </div>
-        <div class="bg-[#0e1218] border border-white/5 rounded-xl p-4">
-          <div class="text-3xl font-black mono text-[#00ff9c]" id="statUps">—</div>
-          <div class="text-[10px] text-[#7a8290] mono uppercase tracking-wider mt-1">Gainers</div>
+        <div class="text-sm text-[#7a8290] mono">
+          Showing Top Movers: <span id="statUps" class="text-[#00ff9c] font-bold">—</span> Gainers · <span id="statDowns" class="text-[#ff3d6e] font-bold">—</span> Losers
         </div>
-        <div class="bg-[#0e1218] border border-white/5 rounded-xl p-4">
-          <div class="text-3xl font-black mono text-[#ff3d6e]" id="statDowns">—</div>
-          <div class="text-[10px] text-[#7a8290] mono uppercase tracking-wider mt-1">Losers</div>
-        </div>
-      </div>
-      
-      <div class="flex items-center justify-center gap-6 flex-wrap text-xs mono uppercase tracking-wider text-[#4b5563]">
-        <span class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-[#00ff9c]"></span> Tracking 195+ US Stocks</span>
-        <span class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-[#ffb547]"></span> Updated Every 30 Mins</span>
-        <span class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-[#00d8ff]"></span> Data: Alpaca Markets</span>
       </div>
     </div>
   </section>
@@ -260,7 +251,7 @@
     </div>
     <div class="max-w-[1600px] mx-auto px-4 md:px-6 mt-8 pt-4 border-t border-white/5">
       <p class="text-[10px] text-[#4b5563] mono uppercase tracking-wider text-center">
-        Gapper Radar v5.1 · Not financial advice · Trading involves substantial risk of loss
+        Gapper Radar v5.2 · Not financial advice · Trading involves substantial risk of loss
       </p>
     </div>
   </footer>
@@ -519,12 +510,13 @@
     }
     
     function updateStats() {
-      const ups = allGappers.filter(g => g.isUp);
-      const downs = allGappers.filter(g => !g.isUp);
+      const ups = allGappers.filter(g => g.isUp).length;
+      const downs = allGappers.filter(g => !g.isUp).length;
       
-      document.getElementById('statTotal').textContent = allGappers.length;
-      document.getElementById('statUps').textContent = ups.length;
-      document.getElementById('statDowns').textContent = downs.length;
+      const upsEl = document.getElementById('statUps');
+      const downsEl = document.getElementById('statDowns');
+      if(upsEl) upsEl.textContent = ups;
+      if(downsEl) downsEl.textContent = downs;
     }
     
     function renderGrid() {
