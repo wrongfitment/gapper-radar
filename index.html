@@ -627,10 +627,18 @@
       
       try {
         const response = await fetch('/api/gappers');
-        const result = await response.json();
+        
+        // Safely handle the response so we don't crash the app with JSON.parse
+        const rawText = await response.text();
+        let result;
+        try {
+          result = JSON.parse(rawText);
+        } catch (e) {
+          throw new Error(`Backend returned an HTML error page instead of data. Check Vercel logs.`);
+        }
         
         if (!response.ok || !result.data) {
-          throw new Error(result.error || 'Backend failed to return data');
+          throw new Error(result.error || `Backend Error: Status ${response.status}`);
         }
 
         allGappers = result.data.map(stock => {
@@ -643,6 +651,13 @@
         
         if (result.nextScan) countdownSeconds = Math.max(0, Math.floor((result.nextScan - Date.now()) / 1000));
         else countdownSeconds = 30 * 60;
+        updateCountdownDisplay();
+      } catch (error) {
+        console.error("Fetch error:", error);
+        showToast(error.message, 'error');
+        loadingEl.innerHTML = `<div class="col-span-full text-center py-10 text-[#ff3d6e] mono uppercase tracking-wider px-4">Error: ${error.message}</div>`;
+      }
+    }
         updateCountdownDisplay();
       } catch (error) {
         console.error("Fetch error:", error);
