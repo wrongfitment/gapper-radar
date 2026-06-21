@@ -121,20 +121,28 @@
     </div>
   </header>
 
+  <!-- Hero & Trust Section -->
   <section class="relative z-10 border-b border-white/5 grid-overlay">
-    <div class="max-w-[1600px] mx-auto px-4 md:px-6 py-10 text-center">
+    <div class="max-w-[1600px] mx-auto px-4 md:px-6 py-8 md:py-10 text-center">
       <h2 class="text-2xl md:text-4xl font-black tracking-tight mb-3">Spot the Market's Biggest Movers Instantly</h2>
       <p class="text-sm md:text-base text-[#7a8290] max-w-3xl mx-auto mb-6">
         Track real-time pre-market gap ups and downs. We scan high-beta stocks for >1% overnight moves, score them by momentum and volume confirmation, and show you exactly where the action is.
       </p>
+      
+      <!-- Stale Data Warning -->
+      <div id="staleDataWarning" class="hidden mb-4 max-w-2xl mx-auto bg-[#ff3d6e]/10 border border-[#ff3d6e]/30 text-[#ff3d6e] rounded-lg px-4 py-2 text-xs mono uppercase tracking-wider font-bold">
+        ⚠️ Market Closed — Displaying Stale Data from: <span id="staleTime">--</span>
+      </div>
+      
       <div class="flex items-center justify-center gap-6 flex-wrap text-xs mono uppercase tracking-wider">
         <span class="flex items-center gap-2 text-[#00ff9c]"><span class="w-2 h-2 rounded-full bg-[#00ff9c] pulse-dot text-[#00ff9c]"></span> Live Data: Alpaca Markets</span>
-        <span class="flex items-center gap-2 text-[#ffb547]"><span class="w-2 h-2 rounded-full bg-[#ffb547]"></span> Auto-Scan: Every 30 Mins</span>
+        <span class="flex items-center gap-2 text-[#ffb547]"><span class="w-2 h-2 rounded-full bg-[#ffb547]"></span> Last Scan: <span id="lastScanTime">--</span></span>
         <span class="flex items-center gap-2 text-[#00d8ff]"><span class="w-2 h-2 rounded-full bg-[#00d8ff]"></span> Universe: 195 Tickers (Top 50 Shown)</span>
       </div>
     </div>
   </section>
   
+  <!-- Search & Filters -->
   <section class="relative z-10 border-b border-white/5 bg-black/20">
     <div class="max-w-[1600px] mx-auto px-4 md:px-6 py-4">
       <div class="flex items-center justify-between flex-wrap gap-4 mb-4">
@@ -172,6 +180,7 @@
     </div>
   </section>
   
+  <!-- Stats Bar -->
   <section class="relative z-10 border-b border-white/5 bg-black/20">
     <div class="max-w-[1600px] mx-auto px-4 md:px-6 py-4">
       <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -211,7 +220,8 @@
         <h2 class="text-[10px] text-[#7a8290] mono uppercase tracking-[0.2em]">All Gappers</h2>
         <span class="text-[10px] text-[#7a8290] mono uppercase tracking-wider" id="resultCount">0 results</span>
       </div>
-      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3" id="stockGrid"></div>
+      <!-- Adjusted for mobile responsiveness: 1 col on small, 2 on md, 3 on xl -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3" id="stockGrid"></div>
     </div>
   </section>
   
@@ -221,7 +231,7 @@
         <h4 class="text-xs font-bold text-white mb-2 mono uppercase tracking-wider">Methodology</h4>
         <p class="text-xs text-[#7a8290] leading-relaxed">
           Scans top high-volume tickers for >1% overnight gaps. <br><br>
-          <strong class="text-[#ffb547]">Gap Continuation Score (0-95):</strong> Algorithm factors in gap magnitude, relative volume confirmation (>500k shares), and intraday price action relative to the open to estimate momentum strength.
+          <strong class="text-[#ffb547]">Gap Continuation Score (0-100):</strong> Algorithm factors in gap magnitude (up to 40 pts), relative volume confirmation (up to 20 pts), and intraday price action relative to the open (up to 15 pts) to estimate momentum strength.
         </p>
       </div>
       <div>
@@ -241,7 +251,7 @@
     </div>
     <div class="max-w-[1600px] mx-auto px-4 md:px-6 mt-8 pt-4 border-t border-white/5">
       <p class="text-[10px] text-[#4b5563] mono uppercase tracking-wider text-center">
-        Gapper Radar v3.0 · Not financial advice · Trading involves substantial risk of loss
+        Gapper Radar v3.1 · Not financial advice · Trading involves substantial risk of loss
       </p>
     </div>
   </footer>
@@ -268,19 +278,19 @@
   </div>
 
   <script>
+    // FIXED: Normalized price formatting
+    function formatPrice(p) {
+      if (!p && p !== 0) return '—';
+      if (p < 1) return p.toFixed(4); // 4 decimals for sub-$1
+      return p.toFixed(2); // Strictly 2 decimals for everything else
+    }
+    
     function formatVolume(v) {
       if (!v) return '0';
       if (v >= 1e9) return (v / 1e9).toFixed(2) + 'B';
       if (v >= 1e6) return (v / 1e6).toFixed(2) + 'M';
       if (v >= 1e3) return (v / 1e3).toFixed(1) + 'K';
       return v.toFixed(0);
-    }
-    
-    function formatPrice(p) {
-      if (!p && p !== 0) return '—';
-      if (p < 1) return p.toFixed(4);
-      if (p < 10) return p.toFixed(3);
-      return p.toFixed(2);
     }
     
     let allGappers = [];
@@ -359,7 +369,7 @@
       
       const isHighMomentum = stock.gapScore >= 75;
       const isVolSpike = stock.volume >= 1500000;
-      const scoreColor = stock.gapScore > 70 ? '#00ff9c' : stock.gapScore > 50 ? '#ffb547' : '#ff3d6e';
+      const scoreColor = stock.gapScore > 75 ? '#00ff9c' : stock.gapScore > 50 ? '#ffb547' : '#ff3d6e';
       
       return `
         <div class="stock-card card-enter rounded-xl bg-[#0e1218] border border-white/5 p-4 cursor-pointer" 
@@ -410,10 +420,10 @@
           <div class="pt-3 border-t border-white/5">
             <div class="flex items-center justify-between mb-1">
               <div class="text-[9px] text-[#7a8290] mono uppercase tracking-wider">Gap Continuation Score</div>
-              <div class="text-sm font-black mono" style="color: ${scoreColor}">${stock.gapScore} / 95</div>
+              <div class="text-sm font-black mono" style="color: ${scoreColor}">${stock.gapScore} / 100</div>
             </div>
             <div class="score-bar-bg">
-              <div class="score-bar-fill" style="width: ${(stock.gapScore / 95) * 100}%; background: ${scoreColor};"></div>
+              <div class="score-bar-fill" style="width: ${stock.gapScore}%; background: ${scoreColor};"></div>
             </div>
           </div>
         </div>
@@ -427,7 +437,7 @@
         ? 'radial-gradient(ellipse at top right, rgba(0,255,156,0.10), transparent 60%)'
         : 'radial-gradient(ellipse at top right, rgba(255,61,110,0.10), transparent 60%)';
       const gradId = `feat-grad-${stock.id}-${index}`;
-      const scoreColor = stock.gapScore > 70 ? '#00ff9c' : stock.gapScore > 50 ? '#ffb547' : '#ff3d6e';
+      const scoreColor = stock.gapScore > 75 ? '#00ff9c' : stock.gapScore > 50 ? '#ffb547' : '#ff3d6e';
       
       return `
         <div class="rounded-2xl bg-[#0e1218] border border-white/5 p-5 relative overflow-hidden card-enter cursor-pointer"
@@ -470,10 +480,10 @@
           <div class="pt-4 border-t border-white/5">
             <div class="flex items-center justify-between mb-1">
               <div class="text-[9px] text-[#7a8290] mono uppercase tracking-wider">Gap Continuation Score</div>
-              <div class="text-lg font-black mono" style="color: ${scoreColor}">${stock.gapScore} / 95</div>
+              <div class="text-lg font-black mono" style="color: ${scoreColor}">${stock.gapScore} / 100</div>
             </div>
             <div class="score-bar-bg h-1.5">
-              <div class="score-bar-fill" style="width: ${(stock.gapScore / 95) * 100}%; background: ${scoreColor};"></div>
+              <div class="score-bar-fill" style="width: ${stock.gapScore}%; background: ${scoreColor};"></div>
             </div>
           </div>
         </div>
@@ -517,8 +527,9 @@
         return dir === 'desc' ? bv - av : av - bv;
       });
       
-      const topUp = [...filtered].filter(g => g.isUp).sort((a, b) => b.gapScore - a.gapScore)[0];
-      const topDown = [...filtered].filter(g => !g.isUp).sort((a, b) => a.gapScore - b.gapScore)[0];
+      // FIXED: Sort by absolute gap percentage to find the true biggest movers
+      const topUp = [...filtered].filter(g => g.isUp).sort((a, b) => b.gapPercent - a.gapPercent)[0];
+      const topDown = [...filtered].filter(g => !g.isUp).sort((a, b) => a.gapPercent - b.gapPercent)[0];
       const featuredHTML = [];
       if (topUp) featuredHTML.push(renderFeaturedCard(topUp, 'Top Gap Up', 1));
       if (topDown) featuredHTML.push(renderFeaturedCard(topDown, 'Top Gap Down', 2));
@@ -641,6 +652,27 @@
 
         updateStats(); renderTickerTape(); renderSectorPills(); renderGrid();
         showToast(`${isAuto ? 'Auto' : 'Manual'} scan complete · ${allGappers.length} pro gappers found`, 'success');
+        
+        // Update Last Scan Time
+        if (result.lastUpdated) {
+          const d = new Date(result.lastUpdated);
+          const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
+          const timeStr = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+          document.getElementById('lastScanTime').textContent = `${dayName} ${timeStr}`;
+          
+          // Check if market is closed to show stale data warning
+          const now = new Date();
+          const day = now.getDay();
+          const hours = now.getHours() + (now.getMinutes() / 60);
+          const isClosed = (day === 0 || day === 6 || hours < 4 || hours >= 20);
+          
+          if (isClosed) {
+            document.getElementById('staleTime').textContent = `${dayName} ${timeStr}`;
+            document.getElementById('staleDataWarning').classList.remove('hidden');
+          } else {
+            document.getElementById('staleDataWarning').classList.add('hidden');
+          }
+        }
         
         if (result.nextScan) countdownSeconds = Math.max(0, Math.floor((result.nextScan - Date.now()) / 1000));
         else countdownSeconds = 30 * 60;
