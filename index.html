@@ -55,8 +55,6 @@
   .toast.out { animation: toast-in 0.4s cubic-bezier(0.4,0,0.2,1) reverse; }
   .modal-overlay { background: rgba(0,0,0,0.8); backdrop-filter: blur(8px); }
   .modal-content { background: #0e1218; border: 1px solid rgba(255,255,255,0.1); }
-  
-  /* Loading bar styles */
   .progress-bar-bg { background: rgba(255,255,255,0.05); }
   .progress-bar-fill { background: var(--accent); transition: width 0.3s ease; }
 </style>
@@ -159,7 +157,6 @@
           <select id="sortSelect" class="px-3 py-2 rounded-lg bg-[#0e1218] border border-white/5 text-sm font-bold mono cursor-pointer hover:border-white/20">
             <option value="gap-desc">Gap % ↓</option>
             <option value="gap-asc">Gap % ↑</option>
-            <option value="volume-desc">Volume ↓</option>
             <option value="price-desc">Price ↓</option>
           </select>
           <div class="text-xs text-[#7a8290] mono hidden sm:block">
@@ -193,7 +190,7 @@
   <footer class="relative z-10 border-t border-white/5 py-5">
     <div class="max-w-[1600px] mx-auto px-4 md:px-6 flex items-center justify-between flex-wrap gap-3">
       <div class="text-[10px] text-[#7a8290] mono uppercase tracking-wider">
-        Gapper Radar · Live Data via Yahoo Finance + TradingView · Not financial advice
+        Gapper Radar · Live Data via Finnhub + TradingView · Not financial advice
       </div>
     </div>
   </footer>
@@ -220,13 +217,10 @@
   </div>
 
   <script>
-    function formatVolume(v) {
-      if (!v) return '0';
-      if (v >= 1e9) return (v / 1e9).toFixed(2) + 'B';
-      if (v >= 1e6) return (v / 1e6).toFixed(2) + 'M';
-      if (v >= 1e3) return (v / 1e3).toFixed(1) + 'K';
-      return v.toFixed(0);
-    }
+    // =======================================================================
+    // CRITICAL: REPLACE 'YOUR_API_KEY' WITH YOUR ACTUAL FINNHUB API KEY
+    // =======================================================================
+    const FINNHUB_KEY = 'YOUR_API_KEY';
     
     function formatPrice(p) {
       if (!p && p !== 0) return '—';
@@ -243,31 +237,56 @@
     let scanCounter = 0;
     let sparkIdCounter = 0;
     
-    // Cache system to load instantly on page refresh
-    const CACHE_KEY = 'gapperRadarCache';
-    const CACHE_TIME = 30 * 60 * 1000; // 30 mins
-    
-    function getCachedData() {
-      try {
-        const cached = localStorage.getItem(CACHE_KEY);
-        if (cached) {
-          const data = JSON.parse(cached);
-          if (Date.now() - data.timestamp < CACHE_TIME) return data;
+    const STOCK_UNIVERSE = [
+      { ticker: 'NVDA', name: 'NVIDIA Corp' }, { ticker: 'TSLA', name: 'Tesla Inc' },
+      { ticker: 'AMD', name: 'Adv Micro Devices' }, { ticker: 'AAPL', name: 'Apple Inc' },
+      { ticker: 'MSFT', name: 'Microsoft Corp' }, { ticker: 'META', name: 'Meta Platforms' },
+      { ticker: 'AMZN', name: 'Amazon.com Inc' }, { ticker: 'GOOGL', name: 'Alphabet Inc' },
+      { ticker: 'PLTR', name: 'Palantir Tech' }, { ticker: 'NFLX', name: 'Netflix Inc' },
+      { ticker: 'GME', name: 'GameStop Corp' }, { ticker: 'AMC', name: 'AMC Entertainment' },
+      { ticker: 'SOFI', name: 'SoFi Technologies' }, { ticker: 'COIN', name: 'Coinbase Global' },
+      { ticker: 'MRNA', name: 'Moderna Inc' }, { ticker: 'BNTX', name: 'BioNTech SE' },
+      { ticker: 'JPM', name: 'JPMorgan Chase' }, { ticker: 'GS', name: 'Goldman Sachs' },
+      { ticker: 'XOM', name: 'Exxon Mobil' }, { ticker: 'OXY', name: 'Occidental Petroleum' },
+      { ticker: 'WMT', name: 'Walmart Inc' }, { ticker: 'RIVN', name: 'Rivian Automotive' },
+      { ticker: 'LCID', name: 'Lucid Group' }, { ticker: 'SPCE', name: 'Virgin Galactic' },
+      { ticker: 'PLUG', name: 'Plug Power Inc' }, { ticker: 'MARA', name: 'Marathon Digital' },
+      { ticker: 'RIOT', name: 'Riot Platforms' }, { ticker: 'MSTR', name: 'MicroStrategy' },
+      { ticker: 'SNAP', name: 'Snap Inc' }, { ticker: 'SQUARE', name: 'Block Inc' }
+    ];
+
+    function generateOHLCSparkline(open, high, low, current) {
+      const points = 32;
+      const data = [];
+      const safeOpen = open || current;
+      const safeHigh = high || current;
+      const safeLow = low || current;
+      
+      for(let i=0; i<points; i++) {
+        const progress = i / (points - 1);
+        let target;
+        if (progress < 0.25) {
+          const p = progress / 0.25;
+          target = safeOpen + (safeLow - safeOpen) * p;
+        } else if (progress < 0.75) {
+          const p = (progress - 0.25) / 0.5;
+          target = safeLow + (safeHigh - safeLow) * p;
+        } else {
+          const p = (progress - 0.75) / 0.25;
+          target = safeHigh + (current - safeHigh) * p;
         }
-      } catch (e) {}
-      return null;
-    }
-    
-    function saveCachedData(data) {
-      try {
-        localStorage.setItem(CACHE_KEY, JSON.stringify({ timestamp: Date.now(), data: data }));
-      } catch (e) {}
+        const noise = target * (Math.random() - 0.5) * 0.005;
+        data.push(target + noise);
+      }
+      data[0] = safeOpen;
+      data[7] = safeLow; 
+      data[23] = safeHigh; 
+      data[31] = current;
+      return data;
     }
     
     function renderSparkline(data, isUp, width = 200, height = 40, gradientId) {
-      if (!data || data.length < 2) {
-        return `<div class="w-full h-full flex items-center justify-center text-[#4b5563] text-[9px] mono uppercase">No Chart Data</div>`;
-      }
+      if (!data || data.length < 2) return '';
       const min = Math.min(...data);
       const max = Math.max(...data);
       const range = Math.max(max - min, 0.0001);
@@ -299,7 +318,6 @@
       const bgTint = stock.isUp ? 'rgba(0,255,156,0.06)' : 'rgba(255,61,110,0.06)';
       const borderTint = stock.isUp ? 'rgba(0,255,156,0.18)' : 'rgba(255,61,110,0.18)';
       const gradId = `grad-${stock.id}-${++sparkIdCounter}`;
-      const highVol = stock.volume > 1000000; 
       
       return `
         <div class="stock-card card-enter rounded-xl bg-[#0e1218] border border-white/5 p-4 cursor-pointer" 
@@ -313,10 +331,8 @@
                       style="background: ${bgTint}; color: ${stock.isUp ? '#00ff9c' : '#ff3d6e'}; border: 1px solid ${borderTint};">
                   ${stock.isUp ? 'LONG' : 'SHORT'}
                 </span>
-                ${highVol ? `<span class="px-1.5 py-0.5 rounded text-[9px] mono font-bold uppercase tracking-wider bg-[#ffb547]/10 text-[#ffb547] border border-[#ffb547]/30">HOT</span>` : ''}
               </div>
               <div class="text-xs text-[#7a8290] mt-0.5 truncate">${stock.name}</div>
-              <div class="text-[10px] text-[#4b5563] mono uppercase tracking-wider mt-0.5">${stock.sector}</div>
             </div>
             <div class="text-right shrink-0">
               <div class="text-lg font-bold mono">$${formatPrice(stock.currentPrice)}</div>
@@ -346,7 +362,7 @@
           <div class="mt-3 pt-3 border-t border-white/5 flex items-center justify-between">
             <div class="flex items-start gap-2 min-w-0">
               <span class="text-[#ffb547] text-xs mt-0.5 shrink-0">▸</span>
-              <span class="text-xs text-[#9ca3af] leading-snug line-clamp-1">Vol: ${formatVolume(stock.volume)}</span>
+              <span class="text-xs text-[#9ca3af] leading-snug line-clamp-1">Change: $${formatPrice(stock.change)}</span>
             </div>
             <span class="text-[9px] text-[#4b5563] mono uppercase tracking-wider shrink-0 ml-2">View Details →</span>
           </div>
@@ -403,7 +419,7 @@
           <div class="mt-4 pt-4 border-t border-white/5 flex items-center justify-between">
             <div class="flex items-start gap-2 min-w-0">
               <span class="text-[#ffb547] text-sm mt-0.5 shrink-0">▸</span>
-              <span class="text-sm text-[#9ca3af]">Volume: ${formatVolume(stock.volume)}</span>
+              <span class="text-sm text-[#9ca3af]">Change: $${formatPrice(stock.change)}</span>
             </div>
             <span class="text-[9px] text-[#4b5563] mono uppercase tracking-wider shrink-0 ml-2">Live Chart →</span>
           </div>
@@ -437,7 +453,6 @@
       filtered.sort((a, b) => {
         let av, bv;
         if (field === 'gap') { av = a.gapPercent; bv = b.gapPercent; }
-        else if (field === 'volume') { av = a.volume; bv = b.volume; }
         else if (field === 'price') { av = a.currentPrice; bv = b.currentPrice; }
         return dir === 'desc' ? bv - av : av - bv;
       });
@@ -524,102 +539,57 @@
     document.getElementById('tvModal').addEventListener('click', (e) => { if (e.target.id === 'tvModal') closeModal(); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
     
-    // RACES 3 PROXIES AT THE SAME TIME AND TAKES THE FASTEST ONE
-    async function fetchStockData(ticker) {
-      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=5m&range=1d`;
-      const proxies = [
-        fetch(`https://corsproxy.io/?url=${encodeURIComponent(url)}`).then(res => res.json()),
-        fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`).then(res => res.json()),
-        fetch(`https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(url)}`).then(res => res.json())
-      ];
-      
+    async function fetchStockData(stock) {
+      const url = `https://finnhub.io/api/v1/quote?symbol=${stock.ticker}&token=${FINNHUB_KEY}`;
       try {
-        const data = await Promise.any(proxies);
-        if (data && data.chart && data.chart.result && data.chart.result[0]) {
-          const result = data.chart.result[0];
-          const meta = result.meta;
-          const quote = result.indicators.quote[0];
-          
-          const currentPrice = meta.regularMarketPrice;
-          const prevClose = meta.chartPreviousClose || meta.previousClose;
-          if (!currentPrice || !prevClose) return null;
-          
-          const closes = quote.close || [];
-          const highs = (quote.high || []).filter(v => v !== null);
-          const lows = (quote.low || []).filter(v => v !== null);
-          const vols = (quote.volume || []).filter(v => v !== null);
-          const opens = (quote.open || []).filter(v => v !== null);
-          
-          const openPrice = opens.length > 0 ? opens[0] : currentPrice;
-          const high = highs.length > 0 ? Math.max(...highs) : currentPrice;
-          const low = lows.length > 0 ? Math.min(...lows) : currentPrice;
-          const volume = vols.length > 0 ? vols.reduce((a, b) => a + b, 0) : 0;
-          
-          let lastVal = currentPrice;
-          const sparkData = closes.map(v => {
-            if (v === null) return lastVal;
-            lastVal = v;
-            return v;
-          });
-          if (sparkData.length === 0) sparkData.push(currentPrice);
-          sparkData[sparkData.length - 1] = currentPrice;
-          
-          return {
-            ticker: meta.symbol,
-            name: meta.shortName || meta.longName || meta.symbol,
-            prevClose: prevClose,
-            openPrice: openPrice,
-            currentPrice: currentPrice,
-            high: high,
-            low: low,
-            volume: volume,
-            gapPercent: ((currentPrice - prevClose) / prevClose) * 100,
-            isUp: currentPrice >= prevClose,
-            sparkData: sparkData,
-            sector: 'Equity',
-            news: currentPrice >= prevClose ? 'Gap up on market open' : 'Gap down on market open'
-          };
-        }
-      } catch (e) { return null; }
-      return null;
+        const res = await fetch(url);
+        const q = await res.json();
+        if (!q || q.c === 0 || q.c === null || !q.pc) return null;
+        
+        const currentPrice = q.c;
+        const prevClose = q.pc;
+        const gapPercent = ((currentPrice - prevClose) / prevClose) * 100;
+        const sparkData = generateOHLCSparkline(q.o, q.h, q.l, currentPrice);
+        
+        return {
+          ticker: stock.ticker,
+          name: stock.name,
+          prevClose: prevClose,
+          openPrice: q.o,
+          currentPrice: currentPrice,
+          high: q.h,
+          low: q.l,
+          change: q.d,
+          gapPercent: gapPercent,
+          isUp: gapPercent > 0,
+          sparkData: sparkData,
+        };
+      } catch (e) {
+        return null;
+      }
     }
     
     async function performScan(isAuto = false) {
       scanCounter++;
       
-      // 1. INSTANT LOAD: Check cache first so UI doesn't flash
-      const cached = getCachedData();
-      if (cached && !isAuto) {
-        allGappers = cached.data;
-        updateStats(); renderTickerTape(); renderGrid();
-        const cachedTime = new Date(cached.timestamp);
-        document.getElementById('lastUpdate').textContent = cachedTime.toLocaleTimeString('en-US', { hour12: false });
-        countdownSeconds = Math.max(0, Math.floor((cached.timestamp + CACHE_TIME - Date.now()) / 1000));
-        updateCountdownDisplay();
-        showToast('Loaded from cache. Fetching fresh data in background...', 'info');
-      } else {
-        const loadingEl = document.getElementById('stockGrid');
-        loadingEl.innerHTML = `
-          <div class="col-span-full text-center py-10 text-[#7a8290] mono uppercase tracking-wider">
-            <div id="loadingText">Initializing simultaneous scan...</div>
-            <div class="w-full max-w-xs mx-auto mt-4 progress-bar-bg rounded-full h-1.5 overflow-hidden">
-              <div class="progress-bar-fill h-full" id="loadingBar" style="width: 0%"></div>
-            </div>
-          </div>`;
-        document.getElementById('featuredContainer').innerHTML = '';
-      }
+      const loadingEl = document.getElementById('stockGrid');
+      loadingEl.innerHTML = `
+        <div class="col-span-full text-center py-10 text-[#7a8290] mono uppercase tracking-wider">
+          <div id="loadingText">Scanning Finnhub directly...</div>
+          <div class="w-full max-w-xs mx-auto mt-4 progress-bar-bg rounded-full h-1.5 overflow-hidden">
+            <div class="progress-bar-fill h-full" id="loadingBar" style="width: 0%"></div>
+          </div>
+        </div>`;
+      document.getElementById('featuredContainer').innerHTML = '';
       
       try {
-        const STOCKS = ['NVDA','TSLA','AMD','AAPL','MSFT','META','AMZN','GOOGL','PLTR','NFLX','GME','AMC','SOFI','COIN','MRNA','BNTX','JPM','GS','XOM','OXY','WMT','RIVN','LCID','SPCE','PLUG','FCEL','MARA','RIOT','MSTR','SNAP'];
-        
-        // 2. SIMULTANEOUS FETCH: Fire all 30 requests at once, updating the progress bar as they finish
         const results = [];
         let completed = 0;
-        const total = STOCKS.length;
+        const total = STOCK_UNIVERSE.length;
         
-        await Promise.all(STOCKS.map(async (ticker) => {
-          const data = await fetchStockData(ticker);
-          results.push(data);
+        await Promise.all(STOCK_UNIVERSE.map(async (stock) => {
+          const data = await fetchStockData(stock);
+          if (data) results.push(data);
           completed++;
           const bar = document.getElementById('loadingBar');
           if (bar) bar.style.width = ((completed / total) * 100) + '%';
@@ -628,33 +598,26 @@
         }));
         
         let validGappers = results.filter(Boolean);
-        
-        // Filter for significant gaps > 0.5%
-        validGappers = validGappers.filter(q => Math.abs(q.gapPercent) > 0.5);
         validGappers.sort((a, b) => Math.abs(b.gapPercent) - Math.abs(a.gapPercent));
         
-        if (validGappers.length === 0) throw new Error('No significant gaps found in the current universe.');
+        if (validGappers.length === 0) {
+          throw new Error('Finnhub returned no data. Check if your API key is valid.');
+        }
         
-        allGappers = validGappers.slice(0, 18).map(stock => {
+        allGappers = validGappers.map(stock => {
           return { ...stock, id: `${stock.ticker}-${scanCounter}-${Math.random()}` };
         });
 
         updateStats(); renderTickerTape(); renderGrid();
         const now = new Date();
         document.getElementById('lastUpdate').textContent = now.toLocaleTimeString('en-US', { hour12: false });
-        
-        // Save to cache
-        saveCachedData(allGappers);
-        
         countdownSeconds = 30 * 60;
         updateCountdownDisplay();
         showToast(`${isAuto ? 'Auto' : 'Manual'} scan complete · ${allGappers.length} live gappers found`, 'success');
       } catch (error) {
         console.error("Fetch error:", error);
         showToast(error.message, 'error');
-        if (!cached) {
-          document.getElementById('stockGrid').innerHTML = `<div class="col-span-full text-center py-10 text-[#ff3d6e] mono uppercase tracking-wider px-4">Error: ${error.message}</div>`;
-        }
+        document.getElementById('stockGrid').innerHTML = `<div class="col-span-full text-center py-10 text-[#ff3d6e] mono uppercase tracking-wider px-4">Error: ${error.message}</div>`;
       }
     }
     
